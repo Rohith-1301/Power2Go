@@ -213,7 +213,7 @@ router.get('/admin/export', async (req: Request, res: Response) => {
     const bookingsRes = await query('SELECT * FROM bookings');
     const feedbacksRes = await query('SELECT user_name, rating, comments, created_at FROM feedbacks');
 
-    const wb = XLSX.book_new();
+    const wb = XLSX.utils.book_new();
 
     // 1. Customers Sheet
     const wsUsers = XLSX.utils.json_to_sheet(

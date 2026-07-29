@@ -1,17 +1,14 @@
 const nextConfig = {
   reactStrictMode: true,
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
   async rewrites() {
-    let backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    if (process.env.RENDER) {
-      backendUrl = 'http://localhost:5000';
-    }
-    if (backendUrl.endsWith('/')) {
-      backendUrl = backendUrl.slice(0, -1);
-    }
     return [
       {
         source: '/api/:path*',
-        destination: `${backendUrl}/api/:path*`,
+        destination: 'http://localhost:5000/api/:path*',
       },
     ];
   },

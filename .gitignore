@@ -28,3 +28,6 @@ Thumbs.db
 # Databases
 *.db
 backend/data/*.db
+
+# Scratch files
+scratch/

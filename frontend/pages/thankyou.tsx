@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { CheckCircle, ArrowRight, Zap, Clock, MapPin, Smartphone, Truck, ShieldAlert, Star, MessageSquare, QrCode, ShieldCheck } from 'lucide-react';
+import { CheckCircle, ArrowRight, Zap, Clock, MapPin, Smartphone, Truck, ShieldAlert, Star, MessageSquare, QrCode, ShieldCheck, Loader } from 'lucide-react';
 
 interface BookingDetails {
   serviceType: string;
@@ -23,6 +23,7 @@ export default function ThankYou() {
   const [trackingProgress, setTrackingProgress] = useState(0); // 0 to 100
   const [trackingStep, setTrackingStep] = useState<'confirmed' | 'dispatched' | 'enroute' | 'arrived'>('confirmed');
   const [eta, setEta] = useState(15); // minutes
+  const [activeDriver, setActiveDriver] = useState<any>(null);
 
   // Feedback states (embedded for post-arrival checkout)
   const [showFeedback, setShowFeedback] = useState(false);
@@ -46,74 +47,104 @@ export default function ThankYou() {
 
   useEffect(() => {
     const lastBooking = localStorage.getItem('last_booking');
-    let activeBooking = null;
+    let localBooking = null;
     if (lastBooking) {
-      activeBooking = JSON.parse(lastBooking);
-      setBooking(activeBooking);
+      localBooking = JSON.parse(lastBooking);
+      setBooking(localBooking);
     }
 
     // Default customer number is 8903381167 as requested
     let mobile = '8903381167';
+    let customerName = '';
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsed = JSON.parse(userData);
+      customerName = parsed.name;
       if (parsed.registerNumber && parsed.registerNumber !== 'N/A') {
         mobile = parsed.registerNumber;
       }
     }
     setUserMobile(mobile);
 
-    // Auto-send WhatsApp message once on load for this booking
-    if (activeBooking) {
-      const hasSent = sessionStorage.getItem('whatsapp_sent_for_booking');
-      if (!hasSent) {
-        sessionStorage.setItem('whatsapp_sent_for_booking', 'true');
-        sendWhatsAppMessage(mobile, activeBooking);
-      }
-    }
+    // Do not auto-send WhatsApp message or show WhatsApp notification panel
+    setShowNotification(false);
 
-    // Dismiss WhatsApp panel after 1 minute (60 seconds)
-    const notifyTimeout = setTimeout(() => {
-      setShowNotification(false);
-    }, 60000);
+    let pollInterval: NodeJS.Timeout | null = null;
+    if (customerName && localBooking && localBooking.serviceType !== 'Station Pre-booking') {
+      const fetchRealStatus = async () => {
+        try {
+          const res = await fetch(`/api/bookings/active?username=${encodeURIComponent(customerName)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.activeBooking) {
+              const status = data.activeBooking.status;
+              if (status === 'pending') {
+                setTrackingProgress(5);
+                setTrackingStep('confirmed');
+                setEta(15);
+              } else if (status === 'accepted') {
+                setTrackingProgress(25);
+                setTrackingStep('dispatched');
+                setEta(12);
+              } else if (status === 'on_the_way') {
+                setTrackingProgress(60);
+                setTrackingStep('enroute');
+                setEta(8);
+              } else if (status === 'arrived') {
+                setTrackingProgress(85);
+                setTrackingStep('arrived');
+                setEta(2);
+              } else if (status === 'charging') {
+                setTrackingProgress(95);
+                setTrackingStep('arrived');
+                setEta(0);
+              }
 
-    let interval: NodeJS.Timeout | null = null;
-    if (activeBooking && activeBooking.serviceType !== 'Station Pre-booking') {
-      // Live Tracking Animation emulation (en-route vehicle)
-      interval = setInterval(() => {
-        setTrackingProgress((prev) => {
-          const next = prev + 1;
-          if (next >= 100) {
-            if (interval) clearInterval(interval);
-            setTrackingStep('arrived');
-            setEta(0);
-            setShowFeedback(true); // Open feedback widget once arrived
-            return 100;
+              if (data.driver) {
+                setActiveDriver(data.driver);
+              } else {
+                setActiveDriver(null);
+              }
+            } else {
+              // No active booking means it's completed!
+              setTrackingProgress(100);
+              setTrackingStep('arrived');
+              setEta(0);
+              setShowFeedback(true);
+              setActiveDriver(null);
+              if (pollInterval) clearInterval(pollInterval);
+            }
           }
-          
-          // Update states based on progress
-          if (next > 70) {
-            setTrackingStep('enroute');
-            setEta(2);
-          } else if (next > 20) {
-            setTrackingStep('dispatched');
-            setEta(8);
-          } else {
-            setTrackingStep('confirmed');
-            setEta(13);
-          }
-          return next;
-        });
-      }, 400); // animates to 100% in about 40 seconds
-    } else if (activeBooking && activeBooking.serviceType === 'Station Pre-booking') {
+        } catch (err) {
+          console.error(err);
+        }
+      };
+
+      fetchRealStatus();
+      pollInterval = setInterval(fetchRealStatus, 3000);
+    } else if (localBooking && localBooking.serviceType === 'Station Pre-booking') {
       setShowFeedback(true);
     }
 
     return () => {
-      if (interval) clearInterval(interval);
-      clearTimeout(notifyTimeout);
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, []);
+
+  const getDestinationCoords = (locationStr: string): string => {
+    if (!locationStr) return '';
+    const regex1 = /Lat:\s*(-?\d+\.\d+).*Lng:\s*(-?\d+\.\d+)/i;
+    const match1 = locationStr.match(regex1);
+    if (match1) {
+      return `${match1[1]},${match1[2]}`;
+    }
+    const regex2 = /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/;
+    const match2 = locationStr.match(regex2);
+    if (match2) {
+      return `${match2[1]},${match2[2]}`;
+    }
+    return locationStr;
+  };
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,72 +184,15 @@ export default function ThankYou() {
 
       <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
-        {/* Real WhatsApp Dispatcher Panel */}
-        {showNotification && (
-          <div style={{
-            background: 'rgba(18, 20, 32, 0.95)',
-            border: '1px solid #25D366',
-            borderRadius: '16px',
-            padding: '20px',
-            textAlign: 'left',
-            boxShadow: '0 8px 32px rgba(37, 211, 102, 0.25)',
-            position: 'relative'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '0.85rem', color: '#25D366', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#25D366', display: 'inline-block' }}></span>
-                WhatsApp Notification Ticket Panel
-              </span>
-              <button onClick={() => setShowNotification(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.9rem', color: '#fff', lineHeight: 1.5 }}>
-              <div>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'block' }}>From Company Number:</span>
-                <strong>+91 9600777947 (Power2Go Registered)</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', display: 'block' }}>To Customer Number:</span>
-                <strong>+91 {userMobile}</strong>
-              </div>
-              <div style={{ borderLeft: '3px solid #25D366', paddingLeft: '12px', background: 'rgba(255,255,255,0.01)', padding: '10px', borderRadius: '4px' }}>
-                <strong>Message:</strong> "{booking?.serviceType === 'Station Pre-booking' 
-                  ? `Power2Go Hub Reservation: Dear Customer, your slot at ${booking?.stationName || 'Hub'} is confirmed! Please reach within ${booking?.delayMinutes || 20} mins. View ticket pass: http://localhost:3000/thankyou`
-                  : `Power2Go: Dear Customer, your order is confirmed! Track the live en-route movement of our dispatched charging vehicle: http://localhost:3000/thankyou`}"
-              </div>
-              
-              <button
-                onClick={() => sendWhatsAppMessage(userMobile)}
-                style={{
-                  background: '#25D366',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px',
-                  boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)',
-                  transition: 'all 0.3s ease',
-                  textAlign: 'center',
-                  marginTop: '5px'
-                }}
-              >
-                💬 Send / Resend WhatsApp Message
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Live Tracker Main Panel */}
         <div className="glass-panel" style={{ padding: '30px', textAlign: 'center' }}>
           
           {/* Header circular logo badge */}
           <div style={{
-            width: '80px',
-            height: '80px',
+            width: '90px',
+            height: '90px',
             borderRadius: '50%',
             background: '#ffffff',
             border: '2px solid var(--accent-blue)',
@@ -227,16 +201,15 @@ export default function ThankYou() {
             justifyContent: 'center',
             margin: '0 auto 15px auto',
             overflow: 'hidden',
-            boxShadow: '0 0 15px var(--accent-blue-glow)',
-            padding: '5px'
+            boxShadow: '0 0 15px var(--accent-blue-glow)'
           }}>
             <img 
               src="/logo.png" 
               alt="Power2Go Logo" 
               style={{ 
-                maxWidth: '90%', 
-                maxHeight: '90%', 
-                objectFit: 'contain'
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'cover'
               }} 
             />
           </div>
@@ -333,79 +306,28 @@ export default function ThankYou() {
               {/* Interactive Delivery Tracker Map */}
               <div style={{
                 background: '#090a0f',
-                height: '220px',
+                height: '300px',
                 borderRadius: '12px',
                 border: '1px solid var(--border-glass)',
                 position: 'relative',
                 overflow: 'hidden',
-                marginBottom: '20px',
-                backgroundImage: 'radial-gradient(rgba(255,255,255,0.01) 1px, transparent 0)',
-                backgroundSize: '16px 16px'
+                marginBottom: '20px'
               }}>
-                {/* Map Labels */}
-                <div style={{ position: 'absolute', top: '15px', left: '15px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <MapPin style={{ width: '12px', color: 'var(--accent-red)' }} />
-                  <span>Dispatch Station</span>
-                </div>
-                
-                <div style={{ position: 'absolute', bottom: '15px', right: '15px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <MapPin style={{ width: '12px', color: 'var(--accent-green)' }} />
-                  <span>Your Vehicle Location</span>
-                </div>
-
-                {/* Path Drawing */}
-                <svg style={{ position: 'absolute', width: '100%', height: '100%', top: 0, left: 0 }}>
-                  {/* Dotted Route path */}
-                  <path 
-                    d="M 60,60 C 150,40 220,180 340,160" 
-                    fill="none" 
-                    stroke="rgba(0, 210, 255, 0.15)" 
-                    strokeWidth="4" 
+                {activeDriver && booking?.location ? (
+                  <iframe
+                    src={`https://www.google.com/maps?saddr=${activeDriver.lat},${activeDriver.lng}&daddr=${getDestinationCoords(booking.location)}&output=embed`}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen={true}
+                    loading="lazy"
                   />
-                  <path 
-                    d="M 60,60 C 150,40 220,180 340,160" 
-                    fill="none" 
-                    stroke="var(--accent-blue)" 
-                    strokeWidth="3" 
-                    strokeDasharray="6,6"
-                  />
-                  
-                  {/* Hub Node */}
-                  <circle cx="60" cy="60" r="8" fill="var(--accent-red)" />
-                  <circle cx="60" cy="60" r="16" fill="none" stroke="var(--accent-red)" strokeWidth="1" opacity="0.4" />
-                  
-                  {/* User Node */}
-                  <circle cx="340" cy="160" r="8" fill="var(--accent-green)" />
-                  <circle cx="340" cy="160" r="16" fill="none" stroke="var(--accent-green)" strokeWidth="1" opacity="0.4" />
-                </svg>
-
-                {/* Animating Dispatch Delivery Truck Icon */}
-                {(() => {
-                  const t = trackingProgress / 100;
-                  const x = Math.round((1 - t) * (1 - t) * 60 + 2 * (1 - t) * t * 180 + t * t * 340);
-                  const y = Math.round((1 - t) * (1 - t) * 60 + 2 * (1 - t) * t * 130 + t * t * 160);
-
-                  return (
-                    <div style={{
-                      position: 'absolute',
-                      left: `${x}px`,
-                      top: `${y}px`,
-                      transform: 'translate(-50%, -50%)',
-                      background: 'var(--accent-blue)',
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 0 15px var(--accent-blue)',
-                      zIndex: 20,
-                      transition: 'left 0.1s linear, top 0.1s linear'
-                    }}>
-                      <Truck style={{ width: '18px', color: '#000' }} />
-                    </div>
-                  );
-                })()}
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', gap: '12px' }}>
+                    <Loader className="spin" style={{ color: 'var(--accent-blue)', width: '24px', height: '24px' }} />
+                    <span>Map becomes active when driver is assigned</span>
+                  </div>
+                )}
                 
                 {/* Live Progress HUD overlay */}
                 <div style={{
@@ -420,7 +342,8 @@ export default function ThankYou() {
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  zIndex: 10
                 }}>
                   <Clock style={{ width: '12px', color: 'var(--accent-orange)' }} />
                   <span>ETA: {eta} mins ({trackingProgress}%)</span>
@@ -470,46 +393,53 @@ export default function ThankYou() {
               </div>
 
               {/* Delivery Partner Profile Card */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px',
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid var(--border-glass)',
-                padding: '16px',
-                borderRadius: '12px',
-                textAlign: 'left',
-                marginBottom: '25px'
-              }}>
+              {activeDriver ? (
                 <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-green) 100%)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 10px var(--accent-blue-glow)'
+                  gap: '15px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid var(--border-glass)',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  textAlign: 'left',
+                  marginBottom: '25px'
                 }}>
-                  <Truck style={{ width: '24px', color: '#000' }} />
+                  <img src={activeDriver.profile_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Driver Profile" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--accent-blue)', boxShadow: '0 0 10px var(--accent-blue-glow)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Driver: {activeDriver.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Mobile Charging Specialist • <span style={{ color: 'var(--accent-blue)', fontWeight: 'bold' }}>📞 {activeDriver.mobile}</span></div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', marginTop: '2px' }}>Vehicle: {activeDriver.vehicle_number} ({activeDriver.vehicle_type})</div>
+                  </div>
+                  <div style={{
+                    background: 'rgba(0, 255, 135, 0.1)',
+                    border: '1px solid var(--accent-green)',
+                    borderRadius: '20px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    color: 'var(--accent-green)',
+                    fontWeight: 600
+                  }}>
+                    Assigned
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Ramesh Kumar</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Mobile Charging Specialist</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', marginTop: '2px' }}>Vehicle: Power Truck (TN-47-EX-1208)</div>
-                </div>
+              ) : (
                 <div style={{
-                  background: 'rgba(0, 255, 135, 0.1)',
-                  border: '1px solid var(--accent-green)',
-                  borderRadius: '20px',
-                  padding: '4px 10px',
-                  fontSize: '0.75rem',
-                  color: 'var(--accent-green)',
-                  fontWeight: 600
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: 'rgba(255,255,255,0.01)',
+                  border: '1px dashed var(--border-glass)',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  textAlign: 'left',
+                  marginBottom: '25px',
+                  justifyContent: 'center'
                 }}>
-                  Grid Container: Full
+                  <Loader className="spin" style={{ color: 'var(--accent-blue)', width: '20px', height: '20px' }} />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matching closest charging vehicle... Please hold on.</span>
                 </div>
-              </div>
+              )}
             </>
           )}
 

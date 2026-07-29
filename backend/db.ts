@@ -107,6 +107,45 @@ export async function initDatabase() {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+
+      await query(`
+        CREATE TABLE IF NOT EXISTS trips (
+          id SERIAL PRIMARY KEY,
+          user_name VARCHAR(100) NOT NULL,
+          start_location VARCHAR(255) NOT NULL,
+          end_location VARCHAR(255) NOT NULL,
+          vehicle_type VARCHAR(50) NOT NULL,
+          vehicle_model VARCHAR(100) NOT NULL,
+          battery_capacity NUMERIC(10, 2) NOT NULL,
+          current_charge INTEGER NOT NULL,
+          total_distance NUMERIC(10, 2) NOT NULL,
+          total_duration VARCHAR(50) NOT NULL,
+          stops_count INTEGER NOT NULL,
+          stops_details TEXT NOT NULL,
+          total_cost NUMERIC(10, 2) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS drivers (
+          id SERIAL PRIMARY KEY,
+          driver_id VARCHAR(100) UNIQUE NOT NULL,
+          name VARCHAR(100) NOT NULL,
+          mobile VARCHAR(50) NOT NULL,
+          email VARCHAR(100) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          profile_photo TEXT,
+          aadhaar_number VARCHAR(50) NOT NULL,
+          license_number VARCHAR(50) NOT NULL,
+          vehicle_number VARCHAR(50) NOT NULL,
+          vehicle_type VARCHAR(50) NOT NULL,
+          emergency_contact VARCHAR(50) NOT NULL,
+          battery_capacity NUMERIC(10, 2) NOT NULL DEFAULT 100.0,
+          status VARCHAR(30) NOT NULL DEFAULT 'offline',
+          is_approved BOOLEAN DEFAULT FALSE,
+          lat NUMERIC(10, 6),
+          lng NUMERIC(10, 6),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
     } else {
       // SQLite schema
       sqliteDb.exec(`
@@ -143,6 +182,44 @@ export async function initDatabase() {
           comments TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS trips (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_name TEXT NOT NULL,
+          start_location TEXT NOT NULL,
+          end_location TEXT NOT NULL,
+          vehicle_type TEXT NOT NULL,
+          vehicle_model TEXT NOT NULL,
+          battery_capacity REAL NOT NULL,
+          current_charge INTEGER NOT NULL,
+          total_distance REAL NOT NULL,
+          total_duration TEXT NOT NULL,
+          stops_count INTEGER NOT NULL,
+          stops_details TEXT NOT NULL,
+          total_cost REAL NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS drivers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          driver_id TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          mobile TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          profile_photo TEXT,
+          aadhaar_number TEXT NOT NULL,
+          license_number TEXT NOT NULL,
+          vehicle_number TEXT NOT NULL,
+          vehicle_type TEXT NOT NULL,
+          emergency_contact TEXT NOT NULL,
+          battery_capacity REAL NOT NULL DEFAULT 100.0,
+          status TEXT NOT NULL DEFAULT 'offline',
+          is_approved INTEGER DEFAULT 0,
+          lat REAL,
+          lng REAL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
       `);
     }
 
@@ -150,13 +227,26 @@ export async function initDatabase() {
     try {
       if (usePostgres) {
         await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS register_number VARCHAR(50) NOT NULL DEFAULT '';`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'pending';`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS assigned_driver_id INTEGER;`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS live_battery_pct INTEGER DEFAULT 0;`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS live_energy_delivered NUMERIC(10, 2) DEFAULT 0.0;`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS live_duration_mins INTEGER DEFAULT 0;`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS driver_rating INTEGER;`);
+        await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS driver_feedback TEXT;`);
       } else {
-        await query(`ALTER TABLE users ADD COLUMN register_number TEXT NOT NULL DEFAULT '';`);
+        try { await query(`ALTER TABLE users ADD COLUMN register_number TEXT NOT NULL DEFAULT '';`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN assigned_driver_id INTEGER;`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN live_battery_pct INTEGER DEFAULT 0;`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN live_energy_delivered REAL DEFAULT 0.0;`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN live_duration_mins INTEGER DEFAULT 0;`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN driver_rating INTEGER;`); } catch(e){}
+        try { await query(`ALTER TABLE bookings ADD COLUMN driver_feedback TEXT;`); } catch(e){}
       }
-      console.log('Applied register_number column migration successfully.');
+      console.log('Applied register_number and bookings column migrations successfully.');
     } catch (migError) {
-      // Catch duplicate column error in SQLite
-      console.log('Migration note (column register_number may already exist):');
+      console.log('Migration note (some columns may already exist):', migError);
     }
 
     console.log('Database tables successfully verified/created.');

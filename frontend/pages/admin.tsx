@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ArrowLeft, Users, Calendar, ShoppingBag, Star, Download, ShieldAlert, Lock } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, ShoppingBag, Star, Download, ShieldAlert, Lock, Truck } from 'lucide-react';
 
 interface Metrics {
   totalUsers: number;
@@ -23,8 +23,9 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'bookings' | 'feedback'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'bookings' | 'feedback' | 'drivers'>('users');
 
   useEffect(() => {
     // Check if the user is already authenticated as admin in localStorage
@@ -71,11 +72,27 @@ export default function AdminDashboard() {
       setUsers(data.users);
       setBookings(data.bookings);
       setFeedbacks(data.feedbacks);
+      setDrivers(data.drivers || []);
     } catch (err) {
       console.error(err);
       setAuthError('Connection error fetching metrics.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveDriver = async (driverId: string, approve: boolean) => {
+    try {
+      const res = await fetch('/api/drivers/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId, approve })
+      });
+      if (res.ok) {
+        fetchAdminData('1208006');
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -276,7 +293,7 @@ export default function AdminDashboard() {
 
         {/* Tab Selection */}
         <div className="glass-panel" style={{ padding: '10px', display: 'flex', gap: '10px', marginBottom: '20px', borderRadius: '12px' }}>
-          {(['users', 'bookings', 'feedback'] as const).map((tab) => (
+          {(['users', 'bookings', 'feedback', 'drivers'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -293,7 +310,7 @@ export default function AdminDashboard() {
                 borderRadius: '8px'
               }}
             >
-              {tab === 'users' ? 'Registered Customers' : tab === 'bookings' ? 'Bookings Queue' : 'Feedbacks & Queries'}
+              {tab === 'users' ? 'Registered Customers' : tab === 'bookings' ? 'Bookings Queue' : tab === 'feedback' ? 'Feedbacks & Queries' : 'Driver Partners'}
             </button>
           ))}
         </div>
@@ -380,7 +397,7 @@ export default function AdminDashboard() {
                 )}
               </tbody>
             </table>
-          ) : (
+          ) : activeTab === 'feedback' ? (
             /* Feedbacks Table */
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
               <thead>
@@ -422,6 +439,126 @@ export default function AdminDashboard() {
                 )}
               </tbody>
             </table>
+          ) : (
+            /* Drivers Panel */
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 16px 0', color: 'var(--accent-orange)' }}>Fleet Coverage Map</h3>
+                  <div style={{ height: '350px', borderRadius: '8px', overflow: 'hidden' }}>
+                    <iframe
+                      src="https://www.google.com/maps?q=10.9602,78.0766&z=10&output=embed"
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      allowFullScreen={true}
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 16px 0', color: 'var(--accent-orange)' }}>Online Partners</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
+                    {drivers.filter(d => d.status === 'online').length === 0 ? (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '40px 0' }}>No drivers currently online.</p>
+                    ) : (
+                      drivers.filter(d => d.status === 'online').map((d, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(0, 200, 87, 0.05)', border: '1px solid rgba(0, 200, 87, 0.1)', borderRadius: '8px' }}>
+                          <div>
+                            <strong style={{ fontSize: '0.9rem', display: 'block' }}>{d.name}</strong>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Plate: {d.vehicle_number} • {d.vehicle_type}</span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ background: 'var(--accent-green)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', color: 'black', fontWeight: 'bold' }}>{d.battery_capacity}% Chg</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>Coords: {parseFloat(d.lat || 10.96).toFixed(3)}, {parseFloat(d.lng || 78.07).toFixed(3)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <th style={{ padding: '12px' }}>Driver</th>
+                    <th style={{ padding: '12px' }}>Driver ID</th>
+                    <th style={{ padding: '12px' }}>Mobile / Email</th>
+                    <th style={{ padding: '12px' }}>Aadhaar / License</th>
+                    <th style={{ padding: '12px' }}>Vehicle Plate</th>
+                    <th style={{ padding: '12px' }}>Type</th>
+                    <th style={{ padding: '12px' }}>Battery</th>
+                    <th style={{ padding: '12px' }}>Status</th>
+                    <th style={{ padding: '12px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody style={{ fontSize: '0.9rem' }}>
+                  {drivers.length === 0 ? (
+                    <tr><td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No drivers registered.</td></tr>
+                  ) : (
+                    drivers.map((d, i) => {
+                      const isApproved = Boolean(Number(d.is_approved) === 1 || d.is_approved === true || d.is_approved === 'true');
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <td style={{ padding: '14px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <img src={d.profile_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Profile" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <span style={{ fontWeight: 600 }}>{d.name}</span>
+                          </td>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{d.driver_id}</td>
+                          <td style={{ padding: '14px 12px', fontSize: '0.8rem' }}>
+                            <div>{d.mobile}</div>
+                            <div style={{ color: 'var(--text-secondary)' }}>{d.email}</div>
+                          </td>
+                          <td style={{ padding: '14px 12px', fontSize: '0.8rem' }}>
+                            <div>Aadhaar: {d.aadhaar_number}</div>
+                            <div style={{ color: 'var(--text-secondary)' }}>DL: {d.license_number}</div>
+                          </td>
+                          <td style={{ padding: '14px 12px', fontWeight: 'bold' }}>{d.vehicle_number}</td>
+                          <td style={{ padding: '14px 12px' }}>{d.vehicle_type}</td>
+                          <td style={{ padding: '14px 12px' }}>
+                            <span style={{ color: d.battery_capacity > 50 ? 'var(--accent-green)' : d.battery_capacity > 25 ? 'var(--accent-orange)' : 'var(--accent-red)', fontWeight: 'bold' }}>
+                              {d.battery_capacity}%
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 12px' }}>
+                            <span style={{
+                              background: d.status === 'online' ? 'rgba(0,200,87,0.1)' : 'rgba(255,255,255,0.05)',
+                              color: d.status === 'online' ? 'var(--accent-green)' : 'var(--text-secondary)',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              textTransform: 'capitalize'
+                            }}>{d.status}</span>
+                          </td>
+                          <td style={{ padding: '14px 12px' }}>
+                            {isApproved ? (
+                              <button
+                                onClick={() => handleApproveDriver(d.driver_id, false)}
+                                className="glass-button secondary"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-red)', color: 'var(--accent-red)' }}
+                              >
+                                Suspend
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleApproveDriver(d.driver_id, true)}
+                                className="glass-button"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-green)', color: 'var(--accent-green)' }}
+                              >
+                                Approve
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 

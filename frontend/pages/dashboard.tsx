@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Smartphone, ShieldAlert, Navigation, LogOut, ShieldAlert as AdminIcon, Zap } from 'lucide-react';
+import { Smartphone, ShieldAlert, Navigation, LogOut, ShieldAlert as AdminIcon } from 'lucide-react';
 
 interface User {
   name: string;
@@ -119,7 +119,8 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content Area */}
-      <main className="container" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <main className="container" style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
+        
         <div style={{ textAlign: 'center', marginBottom: '50px' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '10px', fontFamily: 'var(--font-display)' }}>
             Delivering Electricity to Your Vehicle
@@ -307,6 +308,63 @@ export default function Dashboard() {
               boxShadow: '0 4px 15px rgba(0, 255, 135, 0.2)'
             }}>
               Browse Charging Hubs
+            </button>
+          </div>
+
+          {/* Card 4: AI Route Planner */}
+          <div
+            className="glass-panel"
+            onClick={() => router.push('/ai-route-planner')}
+            style={{
+              padding: '40px',
+              cursor: 'pointer',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '20px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{
+              background: 'rgba(0, 210, 255, 0.1)',
+              border: '1px solid var(--accent-blue)',
+              width: '80px',
+              height: '80px',
+              borderRadius: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 20px rgba(0, 210, 255, 0.2)'
+            }}>
+              <Navigation style={{ width: '36px', height: '36px', color: 'var(--accent-blue)' }} />
+            </div>
+
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>AI Route Planner</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6 }}>
+              Plan long-distance trips intelligently by analyzing your vehicle's battery status and recommending charging stops.
+            </p>
+
+            <div style={{
+              fontSize: '0.85rem',
+              background: 'rgba(255,255,255,0.05)',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              border: '1px solid var(--border-glass)',
+              color: 'var(--accent-blue)',
+              fontWeight: 600
+            }}>
+              Smart Range Analysis
+            </div>
+
+            <button className="glass-button" style={{
+              width: '100%',
+              marginTop: '10px',
+              background: 'linear-gradient(135deg, var(--accent-blue) 0%, #0077bb 100%)',
+              boxShadow: '0 4px 15px rgba(0, 210, 255, 0.2)'
+            }}>
+              Start Trip Planner
             </button>
           </div>
         </div>

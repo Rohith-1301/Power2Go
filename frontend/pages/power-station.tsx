@@ -19,49 +19,204 @@ interface Station {
 
 const PREDEFINED_STATIONS: Station[] = [
   {
-    id: 'station-1',
-    name: 'Karur Apolo Hospital Hub',
-    locationName: 'Near Karur Apolo Hospital',
+    id: 'station-velachery',
+    name: 'Power2Go – Velachery',
+    locationName: 'Phoenix Marketcity, Velachery, Chennai',
+    lat: 12.9915,
+    lng: 80.2173,
+    normalSlots: { total: 8, available: 5 },
+    fastSlots: { total: 6, available: 3 },
+  },
+  {
+    id: 'station-sholinganallur',
+    name: 'Power2Go – Sholinganallur',
+    locationName: 'OMR IT Corridor, Sholinganallur, Chennai',
+    lat: 12.9010,
+    lng: 80.2279,
+    normalSlots: { total: 10, available: 6 },
+    fastSlots: { total: 6, available: 3 },
+  },
+  {
+    id: 'station-mattuthavani',
+    name: 'Power2Go – Mattuthavani',
+    locationName: 'Mattuthavani Bus Stand Road, Madurai',
+    lat: 9.9322,
+    lng: 78.1561,
+    normalSlots: { total: 8, available: 4 },
+    fastSlots: { total: 4, available: 4 },
+  },
+  {
+    id: 'station-trichy',
+    name: 'Power2Go – Trichy Central',
+    locationName: 'Central Bus Stand, Trichy',
+    lat: 10.8056,
+    lng: 78.6856,
+    normalSlots: { total: 12, available: 6 },
+    fastSlots: { total: 8, available: 6 },
+  },
+  {
+    id: 'station-karur',
+    name: 'Power2Go – Karur Bus Stand',
+    locationName: 'Karur Bus Stand, Karur',
     lat: 10.9602,
     lng: 78.0766,
-    normalSlots: { total: 10, available: 4 },
-    fastSlots: { total: 5, available: 2 },
+    normalSlots: { total: 8, available: 4 },
+    fastSlots: { total: 4, available: 2 },
   },
   {
-    id: 'station-2',
-    name: 'Coimbatore RK Petrol Bunk Hub',
-    locationName: 'Coimbatore RK Petrol Bunk',
-    lat: 11.0168,
-    lng: 76.9558,
-    normalSlots: { total: 12, available: 6 },
-    fastSlots: { total: 6, available: 1 },
+    id: 'station-villupuram',
+    name: 'Power2Go – Villupuram New Bus Stand',
+    locationName: 'Villupuram New Bus Stand, Villupuram',
+    lat: 11.9401,
+    lng: 79.4861,
+    normalSlots: { total: 10, available: 7 },
+    fastSlots: { total: 8, available: 7 },
   },
   {
-    id: 'station-3',
-    name: 'Kulithalai Bus Stand Station',
-    locationName: 'Kulithalai Bus Stand',
-    lat: 10.9398,
-    lng: 78.4132,
-    normalSlots: { total: 8, available: 2 },
+    id: 'station-namakkal',
+    name: 'Power2Go – Namakkal NH44',
+    locationName: 'NH44 Highway, Namakkal',
+    lat: 11.2189,
+    lng: 78.1673,
+    normalSlots: { total: 12, available: 8 },
+    fastSlots: { total: 8, available: 8 },
+  },
+  {
+    id: 'station-salem',
+    name: 'Power2Go – Five Roads Junction',
+    locationName: 'Five Roads Junction, Salem',
+    lat: 11.6643,
+    lng: 78.1460,
+    normalSlots: { total: 12, available: 5 },
+    fastSlots: { total: 8, available: 5 },
+  },
+  {
+    id: 'station-dindigul',
+    name: 'Power2Go – Dindigul NH44',
+    locationName: 'NH44 Bypass, Dindigul',
+    lat: 10.3673,
+    lng: 77.9803,
+    normalSlots: { total: 8, available: 3 },
     fastSlots: { total: 4, available: 3 },
   },
   {
-    id: 'station-4',
-    name: 'Trichy Central Hub',
-    locationName: 'Trichy Central Bus Stand',
-    lat: 10.8056,
-    lng: 78.6856,
-    normalSlots: { total: 15, available: 7 },
-    fastSlots: { total: 5, available: 0 },
+    id: 'station-virudhunagar',
+    name: 'Power2Go – Virudhunagar Bus Stand',
+    locationName: 'Virudhunagar Bus Stand, Virudhunagar',
+    lat: 9.5872,
+    lng: 77.9578,
+    normalSlots: { total: 8, available: 4 },
+    fastSlots: { total: 4, available: 4 },
   },
+  {
+    id: 'station-kulithalai',
+    name: 'Power2Go – Kulithalai Bus Stand',
+    locationName: 'Kulithalai Bus Stand, Kulithalai',
+    lat: 10.9385,
+    lng: 78.4145,
+    normalSlots: { total: 6, available: 2 },
+    fastSlots: { total: 4, available: 3 },
+  },
+  {
+    id: 'station-ariyalur',
+    name: 'Power2Go – Ariyalur Bus Stand',
+    locationName: 'Ariyalur Bus Stand, Ariyalur',
+    lat: 11.1401,
+    lng: 79.0786,
+    normalSlots: { total: 8, available: 4 },
+    fastSlots: { total: 4, available: 4 },
+  },
+  {
+    id: 'station-erode',
+    name: 'Power2Go – Texvalley Mall',
+    locationName: 'Texvalley Mall, Gangapuram, Erode',
+    lat: 11.3710,
+    lng: 77.7285,
+    normalSlots: { total: 10, available: 5 },
+    fastSlots: { total: 6, available: 5 },
+  },
+  {
+    id: 'station-coimbatore-1',
+    name: 'Power2Go – Brookefields Mall',
+    locationName: 'Brookefields Mall, Coimbatore',
+    lat: 11.0125,
+    lng: 76.9582,
+    normalSlots: { total: 12, available: 4 },
+    fastSlots: { total: 8, available: 4 },
+  },
+  {
+    id: 'station-coimbatore-2',
+    name: 'Power2Go – Avinashi Road',
+    locationName: 'Avinashi Road, Coimbatore',
+    lat: 11.0252,
+    lng: 77.0123,
+    normalSlots: { total: 10, available: 5 },
+    fastSlots: { total: 6, available: 5 },
+  },
+  {
+    id: 'station-nilgiris',
+    name: 'Power2Go – Coonoor Town',
+    locationName: 'Coonoor Town, Nilgiris',
+    lat: 11.3530,
+    lng: 76.7959,
+    normalSlots: { total: 8, available: 3 },
+    fastSlots: { total: 4, available: 3 },
+  },
+  {
+    id: 'station-ooty',
+    name: 'Power2Go – Ooty Bus Stand',
+    locationName: 'Ooty Bus Stand, Ooty',
+    lat: 11.4064,
+    lng: 76.6932,
+    normalSlots: { total: 8, available: 4 },
+    fastSlots: { total: 4, available: 4 },
+  },
+  {
+    id: 'station-kodaikanal',
+    name: 'Power2Go – Kodaikanal Bus Stand',
+    locationName: 'Kodaikanal Bus Stand, Kodaikanal',
+    lat: 10.2381,
+    lng: 77.4892,
+    normalSlots: { total: 8, available: 3 },
+    fastSlots: { total: 4, available: 3 },
+  },
+  {
+    id: 'station-ramanathapuram',
+    name: 'Power2Go – Ramanathapuram Bus Stand',
+    locationName: 'Ramanathapuram Bus Stand, Ramanathapuram',
+    lat: 9.3639,
+    lng: 78.8394,
+    normalSlots: { total: 8, available: 4 },
+    fastSlots: { total: 4, available: 4 },
+  }
 ];
+
+const SORTED_PREDEFINED_STATIONS = [...PREDEFINED_STATIONS].sort((a, b) => {
+  const nameA = a.name.replace('Power2Go – ', '').toLowerCase();
+  const nameB = b.name.replace('Power2Go – ', '').toLowerCase();
+  return nameA.localeCompare(nameB);
+});
 
 export default function PowerStation() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
+  // Map Tamil Nadu coordinates dynamically onto the grid map container (width: 100%, height: 350px)
+  // TN Lat range: 9.3 to 13.0
+  // TN Lng range: 76.6 to 80.3
+  const getGridCoords = (lat: number, lng: number) => {
+    // Map Lat (13.2 -> 10% top, 9.1 -> 90% top)
+    const topPercent = 10 + ((13.2 - lat) / (13.2 - 9.1)) * 80;
+    // Map Lng (76.6 -> 10% left, 80.3 -> 90% left)
+    const leftPercent = 10 + ((lng - 76.6) / (80.3 - 76.6)) * 80;
+    return {
+      top: `${Math.min(92, Math.max(8, topPercent))}%`,
+      left: `${Math.min(92, Math.max(8, leftPercent))}%`
+    };
+  };
+
   // Map & Station States
-  const [selectedStation, setSelectedStation] = useState<Station>(PREDEFINED_STATIONS[0]);
+  const [selectedStation, setSelectedStation] = useState<Station>(SORTED_PREDEFINED_STATIONS[0]);
   const [showBookingForm, setShowBookingForm] = useState(false);
 
   // Booking Form States
@@ -91,7 +246,19 @@ export default function PowerStation() {
     } else {
       setUser(JSON.parse(userData));
     }
-  }, [router]);
+
+    if (router.isReady && router.query.station) {
+      const stationParam = router.query.station as string;
+      const matched = PREDEFINED_STATIONS.find(s => 
+        s.name.toLowerCase().includes(stationParam.toLowerCase()) ||
+        s.locationName.toLowerCase().includes(stationParam.toLowerCase())
+      );
+      if (matched) {
+        setSelectedStation(matched);
+        setShowBookingForm(true);
+      }
+    }
+  }, [router, router.isReady, router.query]);
 
   const handleBooking = async () => {
     if (!user) return;
@@ -140,21 +307,7 @@ export default function PowerStation() {
         delayMinutes
       }));
 
-      sessionStorage.setItem('whatsapp_sent_for_booking', 'true'); // mark as sent to avoid double popups on load
-
-      // Open WhatsApp pre-filled window in the event handler to bypass popup blockers
-      let mobile = '8903381167';
-      const cachedUser = localStorage.getItem('user');
-      if (cachedUser) {
-        const parsed = JSON.parse(cachedUser);
-        if (parsed.registerNumber && parsed.registerNumber !== 'N/A') {
-          mobile = parsed.registerNumber;
-        }
-      }
-      const msgText = `Power2Go Hub Reservation: Dear Customer, your slot at ${selectedStation.name} is confirmed! Please reach within ${delayMinutes} mins. View ticket pass: http://localhost:3000/thankyou`;
-      window.open(`https://api.whatsapp.com/send?phone=91${mobile}&text=${encodeURIComponent(msgText)}`, '_blank');
-
-      // Redirect to en-route tracking screen
+      // Redirect to slot confirmation page
       router.push('/thankyou');
     } catch (error) {
       console.error(error);
@@ -213,243 +366,92 @@ export default function PowerStation() {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '30px', alignItems: 'start' }}>
           
-          {/* Map Side (Interactive Grid Map) */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Station Selection Sidebar (Alphabetical Alignment) */}
+          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '680px' }}>
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '4px' }}>Power2Go Live Grid Map</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Select a station from the interactive grid below to view slots & reserve</p>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '4px', fontFamily: 'var(--font-display)' }}>
+                Select Power2Go Hub
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                Choose from our 19 verified charging stations.
+              </p>
             </div>
 
-            {/* Interactive Vector Map Widget */}
-            <div style={{
-              position: 'relative',
-              width: '100%',
-              height: '350px',
-              background: '#090a0f',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '12px',
-              overflow: 'hidden',
-              backgroundImage: 'radial-gradient(var(--border-glass) 1px, transparent 0)',
-              backgroundSize: '24px 24px'
+            {/* Quick Search Input */}
+            <div style={{ position: 'relative' }}>
+              <input 
+                type="text"
+                placeholder="Search station or city (e.g. Karur)..."
+                onChange={(e) => {
+                  const query = e.target.value.toLowerCase();
+                  const matched = SORTED_PREDEFINED_STATIONS.find(s => 
+                    s.name.toLowerCase().includes(query) || 
+                    s.locationName.toLowerCase().includes(query)
+                  );
+                  if (matched) setSelectedStation(matched);
+                }}
+                className="glass-input"
+                style={{ fontSize: '0.85rem', padding: '10px 14px' }}
+              />
+            </div>
+
+            {/* Structured Alphabetical Station Cards Grid List */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '12px', 
+              overflowY: 'auto', 
+              maxHeight: '480px',
+              paddingRight: '6px'
             }}>
-              {/* Simulated Roads/Grid */}
-              <div style={{ position: 'absolute', width: '2px', height: '100%', background: 'rgba(255,255,255,0.02)', left: '30%' }}></div>
-              <div style={{ position: 'absolute', width: '2px', height: '100%', background: 'rgba(255,255,255,0.02)', left: '70%' }}></div>
-              <div style={{ position: 'absolute', height: '2px', width: '100%', background: 'rgba(255,255,255,0.02)', top: '40%' }}></div>
-              <div style={{ position: 'absolute', height: '2px', width: '100%', background: 'rgba(255,255,255,0.02)', top: '75%' }}></div>
-
-              {/* Glowing connection lines from selected station */}
-              <svg style={{ position: 'absolute', width: '100%', height: '100%', top: 0, left: 0, pointerEvents: 'none' }}>
-                <circle
-                  cx={selectedStation.id === 'station-1' ? '120' : selectedStation.id === 'station-2' ? '280' : selectedStation.id === 'station-3' ? '160' : '320'}
-                  cy={selectedStation.id === 'station-1' ? '100' : selectedStation.id === 'station-2' ? '150' : selectedStation.id === 'station-3' ? '260' : '200'}
-                  r="30"
-                  fill="none"
-                  stroke="var(--accent-green)"
-                  strokeWidth="1.5"
-                  opacity="0.5"
-                  style={{ transformOrigin: 'center' }}
-                >
-                  <animate attributeName="r" values="10;45;10" dur="3s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.8;0.1;0.8" dur="3s" repeatCount="indefinite" />
-                </circle>
-              </svg>
-
-              {/* Predefined Station Nodes on Grid */}
-              {/* Station 1: Karur Apolo */}
-              <button
-                type="button"
-                onClick={() => setSelectedStation(PREDEFINED_STATIONS[0])}
-                style={{
-                  position: 'absolute',
-                  left: '120px',
-                  top: '100px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 10
-                }}
-              >
-                <MapPin style={{
-                  color: selectedStation.id === 'station-1' ? 'var(--accent-green)' : 'var(--accent-blue)',
-                  width: selectedStation.id === 'station-1' ? '36px' : '26px',
-                  height: selectedStation.id === 'station-1' ? '36px' : '26px',
-                  filter: selectedStation.id === 'station-1' ? 'drop-shadow(0 0 8px var(--accent-green))' : 'none',
-                  transition: 'all 0.3s ease'
-                }} />
-                <span style={{
-                  position: 'absolute',
-                  top: '30px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  whiteSpace: 'nowrap',
-                  fontSize: '0.65rem',
-                  background: '#000',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-glass)',
-                  color: '#fff'
-                }}>Karur Apollo</span>
-              </button>
-
-              {/* Station 2: Coimbatore RK */}
-              <button
-                type="button"
-                onClick={() => setSelectedStation(PREDEFINED_STATIONS[1])}
-                style={{
-                  position: 'absolute',
-                  left: '280px',
-                  top: '150px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 10
-                }}
-              >
-                <MapPin style={{
-                  color: selectedStation.id === 'station-2' ? 'var(--accent-green)' : 'var(--accent-blue)',
-                  width: selectedStation.id === 'station-2' ? '36px' : '26px',
-                  height: selectedStation.id === 'station-2' ? '36px' : '26px',
-                  filter: selectedStation.id === 'station-2' ? 'drop-shadow(0 0 8px var(--accent-green))' : 'none',
-                  transition: 'all 0.3s ease'
-                }} />
-                <span style={{
-                  position: 'absolute',
-                  top: '30px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  whiteSpace: 'nowrap',
-                  fontSize: '0.65rem',
-                  background: '#000',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-glass)',
-                  color: '#fff'
-                }}>Coimbatore RK</span>
-              </button>
-
-              {/* Station 3: Kulithalai */}
-              <button
-                type="button"
-                onClick={() => setSelectedStation(PREDEFINED_STATIONS[2])}
-                style={{
-                  position: 'absolute',
-                  left: '160px',
-                  top: '260px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 10
-                }}
-              >
-                <MapPin style={{
-                  color: selectedStation.id === 'station-3' ? 'var(--accent-green)' : 'var(--accent-blue)',
-                  width: selectedStation.id === 'station-3' ? '36px' : '26px',
-                  height: selectedStation.id === 'station-3' ? '36px' : '26px',
-                  filter: selectedStation.id === 'station-3' ? 'drop-shadow(0 0 8px var(--accent-green))' : 'none',
-                  transition: 'all 0.3s ease'
-                }} />
-                <span style={{
-                  position: 'absolute',
-                  top: '30px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  whiteSpace: 'nowrap',
-                  fontSize: '0.65rem',
-                  background: '#000',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-glass)',
-                  color: '#fff'
-                }}>Kulithalai Bus Stand</span>
-              </button>
-
-              {/* Station 4: Trichy Central */}
-              <button
-                type="button"
-                onClick={() => setSelectedStation(PREDEFINED_STATIONS[3])}
-                style={{
-                  position: 'absolute',
-                  left: '320px',
-                  top: '200px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 10
-                }}
-              >
-                <MapPin style={{
-                  color: selectedStation.id === 'station-4' ? 'var(--accent-green)' : 'var(--accent-blue)',
-                  width: selectedStation.id === 'station-4' ? '36px' : '26px',
-                  height: selectedStation.id === 'station-4' ? '36px' : '26px',
-                  filter: selectedStation.id === 'station-4' ? 'drop-shadow(0 0 8px var(--accent-green))' : 'none',
-                  transition: 'all 0.3s ease'
-                }} />
-                <span style={{
-                  position: 'absolute',
-                  top: '30px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  whiteSpace: 'nowrap',
-                  fontSize: '0.65rem',
-                  background: '#000',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-glass)',
-                  color: '#fff'
-                }}>Trichy Central</span>
-              </button>
-            </div>
-
-            {/* Station Live Stats */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', padding: '18px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <Layers style={{ color: 'var(--accent-green)', width: '18px' }} />
-                <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>{selectedStation.name}</h4>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div style={{ borderRight: '1px solid var(--border-glass)', paddingRight: '10px' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Normal Slots (₹13/kWh)</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
-                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-green)' }}>
-                      {selectedStation.normalSlots.available}
+              {SORTED_PREDEFINED_STATIONS.map((station) => {
+                const isSelected = selectedStation.id === station.id;
+                const cleanName = station.name.replace('Power2Go – ', '');
+                return (
+                  <div
+                    key={station.id}
+                    onClick={() => {
+                      setSelectedStation(station);
+                      setShowBookingForm(true);
+                    }}
+                    style={{
+                      padding: '16px',
+                      borderRadius: '12px',
+                      background: isSelected ? 'rgba(0, 255, 135, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                      border: isSelected ? '2px solid var(--accent-green)' : '1px solid var(--border-glass)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyItems: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <strong style={{ fontSize: '0.9rem', color: isSelected ? 'var(--accent-green)' : '#fff', flex: 1 }}>
+                        {station.name}
+                      </strong>
+                      {isSelected && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--accent-green)', fontWeight: 800 }}>
+                          🟢 Selected
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.3' }}>
+                      {station.locationName}
                     </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      / {selectedStation.normalSlots.total} free
-                    </span>
+                    
+                    <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid var(--border-glass)', paddingTop: '6px', fontSize: '0.7rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Normal AC: <strong style={{ color: '#fff' }}>{station.normalSlots.available}/{station.normalSlots.total} free</strong>
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Fast DC: <strong style={{ color: '#fff' }}>{station.fastSlots.available}/{station.fastSlots.total} free</strong>
+                      </span>
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Fast Slots (₹18/kWh)</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
-                    <span style={{
-                      fontSize: '1.5rem',
-                      fontWeight: 700,
-                      color: selectedStation.fastSlots.available > 0 ? 'var(--accent-blue)' : 'var(--accent-red)'
-                    }}>
-                      {selectedStation.fastSlots.available}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      / {selectedStation.fastSlots.total} free
-                    </span>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
-
-            <button
-              onClick={() => setShowBookingForm(true)}
-              className="glass-button"
-              style={{ width: '100%', background: 'linear-gradient(135deg, var(--accent-green) 0%, #009944 100%)', boxShadow: '0 4px 15px rgba(0, 255, 135, 0.2)' }}
-            >
-              Pre-Book slots at this Hub
-            </button>
           </div>
 
           {/* Booking / Details Panel */}
@@ -819,7 +821,7 @@ export default function PowerStation() {
                       padding: '12px'
                     }}
                   >
-                    Confirm Reservation & Send WhatsApp
+                    Confirm Reservation & Generate Ticket Pass
                   </button>
                 </div>
               </div>

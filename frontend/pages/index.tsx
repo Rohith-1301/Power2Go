@@ -6,6 +6,7 @@ import { ShieldCheck, User, CreditCard, Lock, Fingerprint, Zap, Phone } from 'lu
 export default function AuthPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
+  const [role, setRole] = useState<'customer' | 'driver'>('customer');
   const [name, setName] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [password, setPassword] = useState('');
@@ -14,18 +15,22 @@ export default function AuthPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Driver specific registration states
+  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [vehicleType, setVehicleType] = useState('Car');
+  const [emergencyContact, setEmergencyContact] = useState('');
+  const [batteryCapacity, setBatteryCapacity] = useState(60);
+
   // Biometrics States
   const [showBiometrics, setShowBiometrics] = useState(false);
   const [bioState, setBioState] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
   const [registeredUser, setRegisteredUser] = useState<{ name: string; vehiclePlate: string; registerNumber: string } | null>(null);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem('token');
-    if (token) {
-      router.push('/dashboard');
-    }
-
     // Check if there is a registered user on this machine for simulating biometrics
     const cachedUser = localStorage.getItem('registered_user');
     if (cachedUser) {
@@ -39,8 +44,38 @@ export default function AuthPage() {
     setSuccess('');
     setLoading(true);
 
-    const url = isLogin ? '/api/auth/login' : '/api/auth/register';
-    const body = isLogin ? { name, password } : { name, vehiclePlate, password, registerNumber };
+    let url = '';
+    let body = {};
+
+    if (isLogin) {
+      if (role === 'driver') {
+        url = '/api/auth/driver/login';
+        body = { email: name, password }; // Uses email field for driver login
+      } else {
+        url = '/api/auth/login';
+        body = { name, password };
+      }
+    } else {
+      if (role === 'driver') {
+        url = '/api/auth/driver/register';
+        body = {
+          name,
+          email,
+          password,
+          mobile,
+          aadhaarNumber,
+          licenseNumber,
+          vehicleNumber,
+          vehicleType,
+          emergencyContact,
+          batteryCapacity: parseFloat(batteryCapacity.toString()) || 60,
+          profilePhoto: ''
+        };
+      } else {
+        url = '/api/auth/register';
+        body = { name, vehiclePlate, password, registerNumber };
+      }
+    }
 
     try {
       const res = await fetch(url, {
@@ -56,21 +91,38 @@ export default function AuthPage() {
 
       if (isLogin) {
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('user', JSON.stringify(role === 'driver' ? { ...data.driver, isDriver: true } : data.user));
         setSuccess('Login successful! Redirecting...');
         setTimeout(() => {
-          router.push('/dashboard');
+          if (role === 'driver') {
+            router.push('/driver-dashboard');
+          } else {
+            if (data.user.isAdmin) {
+              router.push('/admin');
+            } else {
+              router.push('/dashboard');
+            }
+          }
         }, 1200);
       } else {
-        setSuccess('Registration successful! Please login.');
-        // Cache user details to simulate biometrics local link
-        localStorage.setItem('registered_user', JSON.stringify({ name, vehiclePlate, registerNumber }));
-        setRegisteredUser({ name, vehiclePlate, registerNumber });
+        if (role === 'driver') {
+          setSuccess('Application submitted successfully! Please wait for Admin approval.');
+        } else {
+          setSuccess('Registration successful! Please login.');
+          localStorage.setItem('registered_user', JSON.stringify({ name, vehiclePlate, registerNumber }));
+          setRegisteredUser({ name, vehiclePlate, registerNumber });
+        }
         setIsLogin(true);
         setName('');
         setPassword('');
         setVehiclePlate('');
         setRegisterNumber('');
+        setEmail('');
+        setMobile('');
+        setAadhaarNumber('');
+        setLicenseNumber('');
+        setVehicleNumber('');
+        setEmergencyContact('');
       }
     } catch (err: any) {
       setError(err.message);
@@ -147,8 +199,8 @@ export default function AuthPage() {
         {/* Startup Logo Area */}
         <div style={{ textAlign: 'center', marginBottom: '25px' }}>
           <div style={{
-            width: '160px',
-            height: '160px',
+            width: '180px',
+            height: '180px',
             borderRadius: '50%',
             background: '#ffffff',
             border: '3px solid var(--accent-blue)',
@@ -157,16 +209,15 @@ export default function AuthPage() {
             justifyContent: 'center',
             margin: '0 auto 15px auto',
             overflow: 'hidden',
-            boxShadow: '0 0 20px var(--accent-blue-glow)',
-            padding: '10px'
+            boxShadow: '0 0 25px var(--accent-blue-glow)'
           }}>
             <img 
               src="/logo.png" 
               alt="Power2Go Brand Logo" 
               style={{ 
-                maxWidth: '90%', 
-                maxHeight: '90%', 
-                objectFit: 'contain'
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'cover'
               }} 
             />
           </div>
@@ -205,19 +256,62 @@ export default function AuthPage() {
           </div>
         )}
 
+        {/* Role Selector Tabs */}
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', padding: '6px', borderRadius: '10px', marginBottom: '24px', border: '1px solid var(--border-glass)' }}>
+          <button
+            type="button"
+            onClick={() => { setRole('customer'); setIsLogin(true); setError(''); setSuccess(''); }}
+            style={{
+              flex: 1,
+              border: 'none',
+              padding: '10px',
+              background: role === 'customer' ? 'var(--accent-blue)' : 'transparent',
+              color: role === 'customer' ? 'black' : 'var(--text-secondary)',
+              fontWeight: 'bold',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            👤 Customer Portal
+          </button>
+          <button
+            type="button"
+            onClick={() => { setRole('driver'); setIsLogin(true); setError(''); setSuccess(''); }}
+            style={{
+              flex: 1,
+              border: 'none',
+              padding: '10px',
+              background: role === 'driver' ? 'var(--accent-green)' : 'transparent',
+              color: role === 'driver' ? 'black' : 'var(--text-secondary)',
+              fontWeight: 'bold',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            🚗 Driver Partner
+          </button>
+        </div>
+
         {!showBiometrics ? (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <form autoComplete="off" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Dummy fields to trick browser autofill */}
+            <input type="text" name="chrome-prevent-username" style={{ display: 'none' }} autoComplete="off" />
+            <input type="password" name="chrome-prevent-password" style={{ display: 'none' }} autoComplete="new-password" />
+
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Full Name
+                {isLogin && role === 'driver' ? 'Email Address' : 'Full Name'}
               </label>
               <div style={{ position: 'relative' }}>
                 <User style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
                 <input
                   type="text"
+                  autoComplete="username-nope"
                   className="glass-input"
                   style={{ paddingLeft: '40px' }}
-                  placeholder="John Doe"
+                  placeholder={isLogin && role === 'driver' ? 'driver@power2go.com' : 'John Doe'}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -227,41 +321,160 @@ export default function AuthPage() {
 
             {!isLogin && (
               <>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Register Mobile Number
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Phone style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
-                    <input
-                      type="tel"
-                      className="glass-input"
-                      style={{ paddingLeft: '40px' }}
-                      placeholder="9876543210"
-                      value={registerNumber}
-                      onChange={(e) => setRegisterNumber(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
+                {role === 'customer' ? (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Register Mobile Number
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <Phone style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
+                        <input
+                          type="tel"
+                          className="glass-input"
+                          style={{ paddingLeft: '40px' }}
+                          placeholder="9876543210"
+                          value={registerNumber}
+                          onChange={(e) => setRegisterNumber(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
 
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Vehicle Number Plate
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <CreditCard style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
-                    <input
-                      type="text"
-                      className="glass-input"
-                      style={{ paddingLeft: '40px' }}
-                      placeholder="TN-47-BY-1234"
-                      value={vehiclePlate}
-                      onChange={(e) => setVehiclePlate(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Vehicle Number Plate
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <CreditCard style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
+                        <input
+                          type="text"
+                          className="glass-input"
+                          style={{ paddingLeft: '40px' }}
+                          placeholder="TN-47-BY-1234"
+                          value={vehiclePlate}
+                          onChange={(e) => setVehiclePlate(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        className="glass-input"
+                        placeholder="john@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Mobile Number
+                      </label>
+                      <input
+                        type="tel"
+                        className="glass-input"
+                        placeholder="e.g. +91 98765 43210"
+                        value={mobile}
+                        onChange={(e) => setMobile(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Aadhaar Number
+                      </label>
+                      <input
+                        type="text"
+                        className="glass-input"
+                        placeholder="12-digit Aadhaar"
+                        value={aadhaarNumber}
+                        onChange={(e) => setAadhaarNumber(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Driving License Number
+                      </label>
+                      <input
+                        type="text"
+                        className="glass-input"
+                        placeholder="DL-XXXXXXXXXXXXXXXX"
+                        value={licenseNumber}
+                        onChange={(e) => setLicenseNumber(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Vehicle Number Plate
+                      </label>
+                      <input
+                        type="text"
+                        className="glass-input"
+                        placeholder="TN-37-AA-1234"
+                        value={vehicleNumber}
+                        onChange={(e) => setVehicleNumber(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Vehicle Type
+                      </label>
+                      <select
+                        className="glass-input"
+                        style={{ width: '100%', height: '42px', color: 'white', background: '#0e1227' }}
+                        value={vehicleType}
+                        onChange={(e) => setVehicleType(e.target.value)}
+                      >
+                        <option value="Motorcycle">Motorcycle (2-wheeler SOS)</option>
+                        <option value="Car">Car (4-wheeler Standard)</option>
+                        <option value="Heavy">Heavy (Mobile Van / Truck)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Emergency Contact
+                      </label>
+                      <input
+                        type="tel"
+                        className="glass-input"
+                        placeholder="Emergency number"
+                        value={emergencyContact}
+                        onChange={(e) => setEmergencyContact(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Current Charging Battery Capacity (kWh)
+                      </label>
+                      <input
+                        type="number"
+                        className="glass-input"
+                        value={batteryCapacity}
+                        onChange={(e) => setBatteryCapacity(parseInt(e.target.value) || 60)}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
               </>
             )}
 
@@ -273,6 +486,7 @@ export default function AuthPage() {
                 <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
                 <input
                   type="password"
+                  autoComplete="new-password"
                   className="glass-input"
                   style={{ paddingLeft: '40px' }}
                   placeholder="••••••••"

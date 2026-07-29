@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ArrowLeft, Bike, Car, Truck, MapPin, CheckCircle, ShieldAlert, QrCode, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Bike, Car, Truck, MapPin, CheckCircle, ShieldAlert, QrCode, ShieldCheck, Loader, Star } from 'lucide-react';
+
 
 interface User {
   name: string;
@@ -19,6 +20,14 @@ export default function EmergencyCharging() {
   const [distance, setDistance] = useState<number | null>(null);
   const [paymentType, setPaymentType] = useState<'online' | 'cod'>('online');
   const [loading, setLoading] = useState(false);
+
+  // Active tracking states
+  const [activeBooking, setActiveBooking] = useState<any>(null);
+  const [activeDriver, setActiveDriver] = useState<any>(null);
+  const [completedBookingId, setCompletedBookingId] = useState<number | null>(null);
+  const [rating, setRating] = useState(5);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   // UPI States
   const [showUPIModal, setShowUPIModal] = useState(false);
@@ -45,7 +54,120 @@ export default function EmergencyCharging() {
     } else {
       setUser(JSON.parse(userData));
     }
-  }, [router]);
+
+    if (router.isReady && router.query.location) {
+      setLocationAddress(router.query.location as string);
+      setLocationShared(true);
+      setDistance(8.4); // mock distance for dispatch from nearest hub
+    }
+  }, [router, router.isReady, router.query]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchActiveBooking = async () => {
+      try {
+        const res = await fetch(`/api/bookings/active?username=${encodeURIComponent(user.name)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.activeBooking) {
+            setActiveBooking(data.activeBooking);
+            setActiveDriver(data.driver);
+            setCompletedBookingId(data.activeBooking.id);
+          } else {
+            // Trigger feedback dialog if booking completes
+            if (activeBooking) {
+              setActiveBooking(null);
+              setActiveDriver(null);
+              setShowFeedbackModal(true);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchActiveBooking();
+    const interval = setInterval(fetchActiveBooking, 3000);
+    return () => clearInterval(interval);
+  }, [user, activeBooking]);
+
+  const submitRating = async () => {
+    if (!completedBookingId) return;
+    try {
+      const res = await fetch(`/api/bookings/${completedBookingId}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, feedback: feedbackText }),
+      });
+      if (res.ok) {
+        setCompletedBookingId(null);
+        setShowFeedbackModal(false);
+        setRating(5);
+        setFeedbackText('');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getDestinationCoords = (locationStr: string): string => {
+    if (!locationStr) return '';
+    const regex1 = /Lat:\s*(-?\d+\.\d+).*Lng:\s*(-?\d+\.\d+)/i;
+    const match1 = locationStr.match(regex1);
+    if (match1) {
+      return `${match1[1]},${match1[2]}`;
+    }
+    const regex2 = /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/;
+    const match2 = locationStr.match(regex2);
+    if (match2) {
+      return `${match2[1]},${match2[2]}`;
+    }
+    return locationStr;
+  };
+
+  const getReadableAddress = (locationStr: string): string => {
+    if (!locationStr) return 'Unknown Location';
+    let lat = 0, lng = 0, found = false;
+    const regex1 = /Lat:\s*(-?\d+\.\d+).*Lng:\s*(-?\d+\.\d+)/i;
+    const match1 = locationStr.match(regex1);
+    if (match1) {
+      lat = parseFloat(match1[1]);
+      lng = parseFloat(match1[2]);
+      found = true;
+    } else {
+      const regex2 = /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/;
+      const match2 = locationStr.match(regex2);
+      if (match2) {
+        lat = parseFloat(match2[1]);
+        lng = parseFloat(match2[2]);
+        found = true;
+      }
+    }
+
+    if (found) {
+      if (Math.abs(lat - 10.9602) < 0.05 && Math.abs(lng - 78.0766) < 0.05) {
+        return 'Near Karur Bus Stand, Karur';
+      }
+      if (Math.abs(lat - 10.9392) < 0.05 && Math.abs(lng - 78.4147) < 0.05) {
+        return 'Near Bus Stand, Kulithalai';
+      }
+      if (Math.abs(lat - 9.9322) < 0.05 && Math.abs(lng - 78.1561) < 0.05) {
+        return 'Near Mattuthavani Bus Stand, Madurai';
+      }
+      if (Math.abs(lat - 12.9915) < 0.05 && Math.abs(lng - 80.2173) < 0.05) {
+        return 'Near Phoenix Marketcity, Velachery, Chennai';
+      }
+      if (Math.abs(lat - 10.8056) < 0.05 && Math.abs(lng - 78.6856) < 0.05) {
+        return 'Near Central Bus Stand, Trichy';
+      }
+      if (Math.abs(lat - 11.6643) < 0.05 && Math.abs(lng - 78.1460) < 0.05) {
+        return 'Near NH-44 Salem Bypass Crossing, Salem';
+      }
+      return `Area coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    }
+    return locationStr;
+  };
 
   // Calculations
   const capacity = batteryCapacities[vehicleType];
@@ -140,11 +262,8 @@ export default function EmergencyCharging() {
           mobile = parsed.registerNumber;
         }
       }
-      const msgText = `Power2Go: Dear Customer, your order is confirmed! Track the live en-route movement of our dispatched charging vehicle: http://localhost:3000/thankyou`;
-      window.open(`https://api.whatsapp.com/send?phone=91${mobile}&text=${encodeURIComponent(msgText)}`, '_blank');
-
-      // Redirect to en-route tracking screen
-      router.push('/thankyou');
+      // Redirect back to booking page for real-time en-route tracking
+      router.push('/emergency-charging');
     } catch (error) {
       console.error(error);
       alert('Error booking emergency service. Please try again.');
@@ -210,8 +329,116 @@ export default function EmergencyCharging() {
       {/* Main Container */}
       <main className="container" style={{ flex: 1, paddingTop: '10px' }}>
         
-        {/* Urgent Rate Notification Bar */}
-        <div className="glass-panel" style={{
+        {activeBooking && activeBooking.service_type === 'Emergency SOS' && activeBooking.status !== 'pending' ? (
+          /* Render Active Route Tracking Panel inside the Booking Page */
+          <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--accent-red)', boxShadow: '0 0 20px rgba(255, 42, 95, 0.1)', marginTop: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
+              <div>
+                <span className="pulse-dot" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-red)', marginRight: '8px' }} />
+                <strong style={{ fontSize: '1.25rem', color: 'var(--accent-red)' }}>
+                  Priority SOS Delivery Active
+                </strong>
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Booking ID: #{activeBooking.id} • Assigned: {activeDriver ? 'Yes' : 'Finding Driver...'}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px' }}>
+              <div>
+                {/* Status progress bar */}
+                <div style={{ marginBottom: '30px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    <span style={{ color: activeBooking.status === 'pending' ? 'var(--accent-blue)' : 'inherit' }}>Searching</span>
+                    <span style={{ color: activeBooking.status === 'accepted' ? 'var(--accent-blue)' : 'inherit' }}>Accepted</span>
+                    <span style={{ color: activeBooking.status === 'on_the_way' ? 'var(--accent-blue)' : 'inherit' }}>On the Way</span>
+                    <span style={{ color: activeBooking.status === 'arrived' ? 'var(--accent-blue)' : 'inherit' }}>Arrived</span>
+                    <span style={{ color: activeBooking.status === 'charging' ? 'var(--accent-blue)' : 'inherit' }}>Charging</span>
+                  </div>
+                  <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      background: 'var(--accent-red)',
+                      width: activeBooking.status === 'pending' ? '15%' :
+                             activeBooking.status === 'accepted' ? '35%' :
+                             activeBooking.status === 'on_the_way' ? '55%' :
+                             activeBooking.status === 'arrived' ? '75%' :
+                             activeBooking.status === 'charging' ? '90%' : '100%',
+                      transition: 'width 0.5s ease'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Driver Profile */}
+                {activeDriver ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <img src={activeDriver.profile_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Driver Profile" style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover' }} />
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ display: 'block', fontSize: '1rem' }}>Driver: {activeDriver.name}</strong>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block' }}>Vehicle: {activeDriver.vehicle_number} ({activeDriver.vehicle_type})</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--accent-blue)', fontWeight: 'bold' }}>📞 {activeDriver.mobile}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>ETA</span>
+                      <strong style={{ fontSize: '1.1rem', color: 'var(--accent-red)' }}>
+                        {activeBooking.status === 'on_the_way' ? '5-9 Mins' : activeBooking.status === 'arrived' ? 'Arrived' : activeBooking.status === 'charging' ? 'In Progress' : '3 Mins'}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255,255,255,0.01)', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '1px dashed rgba(255,255,255,0.08)', justifyContent: 'center' }}>
+                    <Loader className="spin" style={{ color: 'var(--accent-blue)', width: '20px', height: '20px' }} />
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matching closest charging vehicle... Please hold on.</span>
+                  </div>
+                )}
+
+                {/* Live progress stats during charging */}
+                {activeBooking.status === 'charging' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', background: 'rgba(255,42,95,0.04)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,42,95,0.1)' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>BATTERY</span>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--accent-red)' }}>{activeBooking.live_battery_pct || 0}%</strong>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>ENERGY</span>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--accent-red)' }}>{activeBooking.live_energy_delivered || 0} kWh</strong>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>DURATION</span>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--accent-red)' }}>{activeBooking.live_duration_mins || 0} Mins</strong>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>CURRENT COST</span>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--accent-blue)' }}>₹{activeBooking.total_amount || 0}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Live route tracking map */}
+              <div style={{ height: '300px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
+                {activeDriver && activeBooking.location ? (
+                  <iframe
+                    src={`https://www.google.com/maps?saddr=${activeDriver.lat},${activeDriver.lng}&daddr=${getDestinationCoords(activeBooking.location)}&output=embed`}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen={true}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Map becomes active when driver is assigned
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            
+            {/* Urgent Rate Notification Bar */}
+            <div className="glass-panel" style={{
           padding: '15px 25px',
           marginBottom: '30px',
           display: 'flex',
@@ -483,7 +710,8 @@ export default function EmergencyCharging() {
           </div>
 
         </div>
-
+          </>
+        )}
       </main>
 
       {/* UPI Payment Gateway Dialog Overlay */}
@@ -621,11 +849,48 @@ export default function EmergencyCharging() {
                       padding: '12px'
                     }}
                   >
-                    Confirm SOS & Send WhatsApp
+                    Confirm SOS Dispatch & Start Tracking
                   </button>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* FEEDBACK & RATING MODAL */}
+      {showFeedbackModal && (
+        <div className="flex-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(3, 7, 18, 0.85)', zIndex: 99999, padding: '20px' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '450px', padding: '36px', borderColor: 'var(--accent-red)', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🚨</div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0 0 6px 0' }}>SOS Response Completed!</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>Please submit your feedback to help us improve emergency response quality.</p>
+
+            {/* Star Rating Inputs */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '24px' }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', outline: 'none' }}
+                >
+                  <Star style={{ width: '32px', height: '32px', fill: star <= rating ? 'var(--accent-red)' : 'none', color: star <= rating ? 'var(--accent-red)' : 'var(--text-secondary)' }} />
+                </button>
+              ))}
+            </div>
+
+            {/* Feedback text */}
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Share your experience (Optional)..."
+              className="glass-input"
+              style={{ width: '100%', height: '100px', minHeight: '80px', marginBottom: '24px', padding: '12px', fontSize: '0.85rem', color: 'white', resize: 'vertical' }}
+            />
+
+            <button onClick={submitRating} className="action-btn" style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, var(--accent-red), #b20a32)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer' }}>
+              Submit Feedback & Ratings
+            </button>
           </div>
         </div>
       )}

@@ -329,7 +329,7 @@ export default function EmergencyCharging() {
       {/* Main Container */}
       <main className="container" style={{ flex: 1, paddingTop: '10px' }}>
         
-        {activeBooking && activeBooking.service_type === 'Emergency SOS' && activeBooking.status !== 'pending' ? (
+        {activeBooking && activeBooking.service_type === 'Emergency Charging' && activeBooking.status !== 'pending' ? (
           /* Render Active Route Tracking Panel inside the Booking Page */
           <div className="glass-panel" style={{ padding: '30px', border: '1px solid var(--accent-red)', boxShadow: '0 0 20px rgba(255, 42, 95, 0.1)', marginTop: '10px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
@@ -344,8 +344,8 @@ export default function EmergencyCharging() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px' }}>
-              <div>
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '30px' }}>
+              <div style={{ flex: '1 1 300px' }}>
                 {/* Status progress bar */}
                 <div style={{ marginBottom: '30px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -416,7 +416,7 @@ export default function EmergencyCharging() {
               </div>
 
               {/* Live route tracking map */}
-              <div style={{ height: '300px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ flex: '1 1 300px', height: '350px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
                 {activeDriver && activeBooking.location ? (
                   <iframe
                     src={`https://www.google.com/maps?saddr=${activeDriver.lat},${activeDriver.lng}&daddr=${getDestinationCoords(activeBooking.location)}&output=embed`}

@@ -342,8 +342,8 @@ export default function MobileCharging() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px' }}>
-              <div>
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '30px' }}>
+              <div style={{ flex: '1 1 300px' }}>
                 {/* Status progress bar */}
                 <div style={{ marginBottom: '30px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -414,7 +414,7 @@ export default function MobileCharging() {
               </div>
 
               {/* Live route tracking map */}
-              <div style={{ height: '300px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ flex: '1 1 300px', height: '350px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
                 {activeDriver && activeBooking.location ? (
                   <iframe
                     src={`https://www.google.com/maps?saddr=${activeDriver.lat},${activeDriver.lng}&daddr=${getDestinationCoords(activeBooking.location)}&output=embed`}

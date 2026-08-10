@@ -26,7 +26,7 @@ if (usePostgres) {
   });
 } else {
   console.log('Database Mode: SQLite (Local Fallback)');
-  const dbDir = path.join(__dirname, 'data');
+  const dbDir = path.resolve(__dirname, '..', 'data');
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }

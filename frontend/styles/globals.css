@@ -370,24 +370,29 @@ body {
 
   /* Header adjustments for mobile */
   header, .app-header {
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
-    gap: 16px !important;
-    padding: 20px 15px !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    padding: 12px 16px !important;
     margin: 12px 8px !important;
-    text-align: center !important;
+    text-align: left !important;
   }
 
   header > div, .app-header > div {
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
-    gap: 12px !important;
-    width: 100% !important;
+    gap: 10px !important;
+    width: auto !important;
   }
 
   header button, .app-header button {
-    width: 100% !important;
+    width: auto !important;
     justify-content: center !important;
+  }
+
+  .mobile-hide-text {
+    display: none !important;
   }
 
   /* Form & layout blocks */
@@ -523,6 +528,26 @@ body {
   justify-content: space-between;
 }
 
+/* AI Route Planner Grid Styles */
+.planner-grid {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 32px;
+}
+
+.planner-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .planner-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+}
+
 @media (max-width: 768px) {
   .roadside-grid {
     grid-template-columns: 1fr !important;
@@ -541,5 +566,9 @@ body {
   .admin-map-grid {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
+  }
+  .planner-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
   }
 }

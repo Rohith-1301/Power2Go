@@ -1467,7 +1467,7 @@ export default function AIRoutePlanner() {
       </div>
 
       {/* Main Layout Area */}
-      <main className="container" style={{ flex: 1, display: 'grid', gridTemplateColumns: '400px 1fr', gap: '32px', padding: '0 32px 32px 32px' }}>
+      <main className="container planner-grid" style={{ flex: 1, padding: '0 32px 32px 32px' }}>
         
         {/* Left Control Sidebar */}
         <section className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', height: 'fit-content', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
@@ -1937,7 +1937,7 @@ export default function AIRoutePlanner() {
                 </h3>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+              <div className="planner-stats-grid">
                 <div style={{ borderRight: '1px solid var(--border-glass)', paddingRight: '15px' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Total trip distance</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>{tripSummary.totalDistance} km</span>
@@ -1972,8 +1972,8 @@ export default function AIRoutePlanner() {
         <div style={{
           position: 'fixed',
           top: 0,
-          right: 0,
-          width: '400px',
+          width: '100%',
+          maxWidth: '400px',
           height: '100vh',
           background: 'rgba(18, 20, 32, 0.95)',
           borderLeft: '1px solid var(--border-glass)',

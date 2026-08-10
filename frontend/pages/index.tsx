@@ -32,6 +32,26 @@ export default function AuthPage() {
   const [registeredUser, setRegisteredUser] = useState<{ name: string; vehiclePlate: string; registerNumber: string } | null>(null);
 
   useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    if (token && userStr) {
+      try {
+        const loggedInUser = JSON.parse(userStr);
+        if (loggedInUser.isAdmin) {
+          router.replace('/admin');
+        } else if (loggedInUser.isDriver) {
+          router.replace('/driver-dashboard');
+        } else {
+          router.replace('/dashboard');
+        }
+        return; // Skip reading registered user to prevent state updates
+      } catch (e) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
+
     // Check if there is a registered user on this machine for simulating biometrics
     const cachedUser = localStorage.getItem('registered_user');
     if (cachedUser) {
@@ -232,7 +252,8 @@ export default function AuthPage() {
           <div style={{
             background: 'rgba(255, 42, 95, 0.1)',
             border: '1px solid var(--accent-red)',
-            color: 'white',
+            color: '#ef4444',
+            fontWeight: 600,
             padding: '12px',
             borderRadius: '6px',
             marginBottom: '20px',
@@ -247,7 +268,8 @@ export default function AuthPage() {
           <div style={{
             background: 'rgba(0, 255, 135, 0.1)',
             border: '1px solid var(--accent-green)',
-            color: 'white',
+            color: '#00aa55',
+            fontWeight: 600,
             padding: '12px',
             borderRadius: '6px',
             marginBottom: '20px',

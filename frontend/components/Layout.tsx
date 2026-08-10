@@ -75,7 +75,7 @@ export default function Layout({ children, activeTab, headerAction }: LayoutProp
           </div>
 
           {activeTab && (
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="mobile-hide-text" style={{ display: 'flex', alignItems: 'center' }}>
               <span style={{ color: '#cbd5e1', fontSize: '1.25rem', fontWeight: 300, margin: '0 12px' }}>|</span>
               <span style={{ fontSize: '1rem', fontWeight: 600, color: '#475569' }}>{activeTab}</span>
             </div>
@@ -91,7 +91,7 @@ export default function Layout({ children, activeTab, headerAction }: LayoutProp
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{user.name}</div>
               {user.vehiclePlate && (
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{user.vehiclePlate}</div>
+                <div className="mobile-hide-text" style={{ fontSize: '0.75rem', color: '#64748b' }}>{user.vehiclePlate}</div>
               )}
             </div>
 
@@ -134,7 +134,7 @@ export default function Layout({ children, activeTab, headerAction }: LayoutProp
               className="sidebar-item"
             >
               <LogOut style={{ width: '16px' }} />
-              Logout
+              <span className="mobile-hide-text">Logout</span>
             </button>
           </div>
         )}

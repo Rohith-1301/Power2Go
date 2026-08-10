@@ -148,7 +148,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }} className="desktop-only">
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
             <div style={{
               width: '100%',
               maxWidth: '440px',

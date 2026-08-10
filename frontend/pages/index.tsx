@@ -7,6 +7,7 @@ export default function AuthPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [role, setRole] = useState<'customer' | 'driver'>('customer');
+  const [workerRole, setWorkerRole] = useState<'driver' | 'mechanic'>('driver');
   const [name, setName] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [password, setPassword] = useState('');
@@ -69,7 +70,8 @@ export default function AuthPage() {
           vehicleType,
           emergencyContact,
           batteryCapacity: parseFloat(batteryCapacity.toString()) || 60,
-          profilePhoto: ''
+          profilePhoto: '',
+          role: workerRole
         };
       } else {
         url = '/api/auth/register';
@@ -91,7 +93,7 @@ export default function AuthPage() {
 
       if (isLogin) {
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(role === 'driver' ? { ...data.driver, isDriver: true } : data.user));
+        localStorage.setItem('user', JSON.stringify(role === 'driver' ? { ...data.driver, isDriver: true, role: data.driver.role } : data.user));
         setSuccess('Login successful! Redirecting...');
         setTimeout(() => {
           if (role === 'driver') {
@@ -195,10 +197,10 @@ export default function AuthPage() {
         <title>Power2Go - Authentication</title>
       </Head>
 
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '450px', padding: '40px' }}>
+      <div className="glass-panel auth-card" style={{ width: '100%', maxWidth: '450px', padding: '40px' }}>
         {/* Startup Logo Area */}
         <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-          <div style={{
+          <div className="auth-logo" style={{
             width: '180px',
             height: '180px',
             borderRadius: '50%',
@@ -290,9 +292,48 @@ export default function AuthPage() {
               transition: 'all 0.2s'
             }}
           >
-            🚗 Driver Partner
+            🛠️ Worker Partner
           </button>
         </div>
+
+        {role === 'driver' && (
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.01)', padding: '4px', borderRadius: '8px', marginBottom: '20px', border: '1px dashed var(--border-glass)' }}>
+            <button
+              type="button"
+              onClick={() => setWorkerRole('driver')}
+              style={{
+                flex: 1,
+                border: 'none',
+                padding: '8px',
+                background: workerRole === 'driver' ? 'rgba(0, 255, 135, 0.15)' : 'transparent',
+                color: workerRole === 'driver' ? 'var(--accent-green)' : 'var(--text-secondary)',
+                fontWeight: 'bold',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              ⚡ Driver (Mobile Charging)
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkerRole('mechanic')}
+              style={{
+                flex: 1,
+                border: 'none',
+                padding: '8px',
+                background: workerRole === 'mechanic' ? 'rgba(255, 159, 0, 0.15)' : 'transparent',
+                color: workerRole === 'mechanic' ? 'var(--accent-orange)' : 'var(--text-secondary)',
+                fontWeight: 'bold',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              🔧 Mechanic (Roadside Repair)
+            </button>
+          </div>
+        )}
 
         {!showBiometrics ? (
           <form autoComplete="off" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

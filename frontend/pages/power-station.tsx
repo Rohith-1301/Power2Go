@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { ArrowLeft, Navigation, MapPin, CheckCircle, Car, ShieldCheck, Clock, Layers, QrCode } from 'lucide-react';
+import Layout from '@/components/Layout';
 
 interface User {
   name: string;
@@ -326,40 +327,10 @@ export default function PowerStation() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Layout>
       <Head>
         <title>Power2Go - Find Charging Stations</title>
       </Head>
-
-      {/* Header Bar */}
-      <header className="glass-panel" style={{
-        margin: '20px',
-        padding: '15px 30px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '20px',
-        borderRadius: '16px'
-      }}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
-          <ArrowLeft style={{ width: '20px' }} />
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Navigation style={{ color: 'var(--accent-green)', width: '24px' }} />
-          <h1 className="gradient-text-green" style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-            Station Finder & Booking
-          </h1>
-        </div>
-      </header>
 
       {/* Main Container */}
       <main className="container" style={{ flex: 1, paddingTop: '10px' }}>
@@ -417,8 +388,8 @@ export default function PowerStation() {
                     style={{
                       padding: '16px',
                       borderRadius: '12px',
-                      background: isSelected ? 'rgba(0, 255, 135, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                      border: isSelected ? '2px solid var(--accent-green)' : '1px solid var(--border-glass)',
+                      background: isSelected ? '#eefdf4' : '#ffffff',
+                      border: isSelected ? '2px solid #00aa55' : '1px solid #cbd5e1',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       display: 'flex',
@@ -427,25 +398,25 @@ export default function PowerStation() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyItems: 'space-between', alignItems: 'center', width: '100%' }}>
-                      <strong style={{ fontSize: '0.9rem', color: isSelected ? 'var(--accent-green)' : '#fff', flex: 1 }}>
+                      <strong style={{ fontSize: '0.9rem', color: isSelected ? '#00aa55' : '#0f172a', flex: 1 }}>
                         {station.name}
                       </strong>
                       {isSelected && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--accent-green)', fontWeight: 800 }}>
+                        <span style={{ fontSize: '0.75rem', color: '#00aa55', fontWeight: 800 }}>
                           🟢 Selected
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.3' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.3' }}>
                       {station.locationName}
                     </span>
                     
-                    <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid var(--border-glass)', paddingTop: '6px', fontSize: '0.7rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Normal AC: <strong style={{ color: '#fff' }}>{station.normalSlots.available}/{station.normalSlots.total} free</strong>
+                    <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid #f1f5f9', paddingTop: '6px', fontSize: '0.7rem' }}>
+                      <span style={{ color: '#64748b' }}>
+                        Normal AC: <strong style={{ color: '#0f172a' }}>{station.normalSlots.available}/{station.normalSlots.total} free</strong>
                       </span>
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Fast DC: <strong style={{ color: '#fff' }}>{station.fastSlots.available}/{station.fastSlots.total} free</strong>
+                      <span style={{ color: '#64748b' }}>
+                        Fast DC: <strong style={{ color: '#0f172a' }}>{station.fastSlots.available}/{station.fastSlots.total} free</strong>
                       </span>
                     </div>
                   </div>
@@ -829,6 +800,6 @@ export default function PowerStation() {
           </div>
         </div>
       )}
-    </div>
+    </Layout>
   );
 }

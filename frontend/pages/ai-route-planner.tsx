@@ -6,6 +6,7 @@ import {
   Clock, Layers, Battery, Map, ShieldAlert, Award, RefreshCw, 
   Trash2, Compass, AlertTriangle, Zap, Leaf, ExternalLink
 } from 'lucide-react';
+import Layout from '@/components/Layout';
 
 interface User {
   name: string;
@@ -1421,64 +1422,55 @@ export default function AIRoutePlanner() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Layout 
+      activeTab="AI Route Planner" 
+      headerAction={
+        <button 
+          onClick={() => setHistoryOpen(!historyOpen)}
+          className="glass-button secondary"
+          style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '10px' }}
+        >
+          <Clock style={{ width: '16px', color: '#00aa55' }} />
+          <span style={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>Trip History ({tripHistory.length})</span>
+        </button>
+      }
+    >
       <Head>
         <title>Power2Go - AI Route Planner</title>
       </Head>
 
-      {/* Header Navigation */}
-      <header className="glass-panel" style={{
-        margin: '20px',
-        padding: '15px 30px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderRadius: '16px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <button 
-            onClick={() => router.push('/dashboard')}
-            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          >
-            <ArrowLeft style={{ width: '22px', height: '22px' }} />
-          </button>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '45px',
-              height: '45px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              background: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px solid var(--accent-green)',
-              boxShadow: '0 0 10px rgba(0, 255, 135, 0.3)'
-            }}>
-              <img src="/logo.png" alt="Power2Go Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-            <span className="gradient-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.2rem' }}>
-              Power2Go AI Route Planner
-            </span>
-          </div>
-        </div>
-
+      {/* Page Title & Back Button */}
+      <div style={{ padding: '0 32px 24px 32px', display: 'flex', alignItems: 'center', gap: '16px', marginTop: '10px' }}>
         <button 
-          onClick={() => setHistoryOpen(!historyOpen)}
-          className="glass-button secondary"
-          style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}
+          onClick={() => router.push('/dashboard')}
+          style={{
+            border: '1px solid #cbd5e1',
+            background: '#ffffff',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+          }}
         >
-          <Clock style={{ width: '16px', color: 'var(--accent-blue)' }} />
-          <span>Trip History ({tripHistory.length})</span>
+          <ArrowLeft style={{ width: '18px', color: '#64748b' }} />
         </button>
-      </header>
+        <div>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🤖 AI Route Planner
+          </h2>
+          <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Plan your EV journey with AI-powered route recommendations</span>
+        </div>
+      </div>
 
       {/* Main Layout Area */}
-      <main className="container" style={{ flex: 1, display: 'grid', gridTemplateColumns: '380px 1fr', gap: '20px', padding: '0 20px 20px 20px' }}>
+      <main className="container" style={{ flex: 1, display: 'grid', gridTemplateColumns: '400px 1fr', gap: '32px', padding: '0 32px 32px 32px' }}>
         
         {/* Left Control Sidebar */}
-        <section className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
+        <section className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', height: 'fit-content', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
           <div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Compass style={{ color: 'var(--accent-blue)', width: '20px' }} />
@@ -1538,8 +1530,9 @@ export default function AIRoutePlanner() {
                     style={{
                       padding: '8px',
                       textTransform: 'capitalize',
-                      borderColor: vehicleType === type ? 'var(--accent-blue)' : 'var(--border-glass)',
-                      background: vehicleType === type ? 'rgba(0, 210, 255, 0.08)' : '',
+                      borderColor: vehicleType === type ? '#00aa55' : '#cbd5e1',
+                      background: vehicleType === type ? '#eefdf4' : '#ffffff',
+                      color: vehicleType === type ? '#00aa55' : '#475569',
                       fontSize: '0.75rem',
                       fontWeight: 600
                     }}
@@ -1581,9 +1574,9 @@ export default function AIRoutePlanner() {
                     max="100"
                     value={currentCharge}
                     onChange={(e) => setCurrentCharge(parseInt(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--accent-blue)', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', outline: 'none' }}
+                    style={{ flex: 1, accentColor: '#00aa55', height: '4px', background: '#cbd5e1', borderRadius: '2px', outline: 'none' }}
                   />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-blue)', width: '32px', textAlign: 'right' }}>{currentCharge}%</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#00aa55', width: '32px', textAlign: 'right' }}>{currentCharge}%</span>
                 </div>
               </div>
             </div>
@@ -1604,16 +1597,16 @@ export default function AIRoutePlanner() {
                 { state: reduceSpeed, setter: setReduceSpeed, label: 'Speed Limit 80km/h', desc: '+10% Range' },
                 { state: acOff, setter: setAcOff, label: 'A/C Climate Off', desc: '+8% Range' }
               ].map((opt, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div>
                     <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>{opt.label}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--accent-green)' }}>{opt.desc}</div>
+                    <div style={{ fontSize: '0.65rem', color: '#00aa55' }}>{opt.desc}</div>
                   </div>
                   <input 
                     type="checkbox" 
                     checked={opt.state}
                     onChange={(e) => opt.setter(e.target.checked)}
-                    style={{ accentColor: 'var(--accent-green)', cursor: 'pointer', width: '16px', height: '16px' }}
+                    style={{ accentColor: '#00aa55', cursor: 'pointer', width: '16px', height: '16px' }}
                   />
                 </div>
               ))}
@@ -1715,7 +1708,7 @@ export default function AIRoutePlanner() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  background: 'rgba(12, 15, 29, 0.85)',
+                  background: 'rgba(255, 255, 255, 0.8)',
                   backdropFilter: 'blur(8px)',
                   zIndex: 20,
                   display: 'flex',
@@ -1723,31 +1716,36 @@ export default function AIRoutePlanner() {
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <RefreshCw className="spin-animation" style={{ width: '42px', height: '42px', color: 'var(--accent-blue)', marginBottom: '15px' }} />
-                  <h4 style={{ color: '#fff', fontWeight: 700, letterSpacing: '1px' }}>AI SOLVING TRIP ROUTE...</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '6px' }}>
+                  <RefreshCw className="spin-animation" style={{ width: '42px', height: '42px', color: '#00aa55', marginBottom: '15px' }} />
+                  <h4 style={{ color: '#0f172a', fontWeight: 700, letterSpacing: '1px' }}>AI SOLVING TRIP ROUTE...</h4>
+                  <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '6px' }}>
                     Calculating optimal charging stops along official Google Maps highway paths...
                   </p>
                 </div>
               )}
-
             </div>
           </div>
 
           {/* Route Strategy Cards (Immediately below the Map) */}
           {tripSolved && availableRoutes.length > 0 && (
-            <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(12, 15, 29, 0.7)', border: '1px solid var(--accent-blue)', borderRadius: '16px' }}>
+            <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Navigation style={{ width: '16px', height: '16px', color: 'var(--accent-blue)' }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#00aa55', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Navigation style={{ width: '16px', height: '16px', color: '#00aa55' }} />
                   Select Google Maps Route Strategy
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Click card to switch map route</span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Click card to switch map route</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginTop: '4px' }}>
                 {availableRoutes.map((route, idx) => {
                   const isSelected = selectedRouteIdx === idx;
+                  const getBadgeColors = (title: string) => {
+                    if (title.includes('Optimal')) return { bg: '#eefdf4', text: '#00aa55' };
+                    if (title.includes('Shortest')) return { bg: '#eff6ff', text: '#3b82f6' };
+                    return { bg: '#fffbeb', text: '#d97706' };
+                  };
+                  const colors = getBadgeColors(route.title);
                   return (
                     <div 
                       key={idx}
@@ -1755,20 +1753,20 @@ export default function AIRoutePlanner() {
                       style={{
                         padding: '14px 16px',
                         borderRadius: '12px',
-                        background: isSelected ? 'rgba(0, 210, 255, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                        border: isSelected ? '2px solid var(--accent-blue)' : '1px solid var(--border-glass)',
+                        background: isSelected ? '#eefdf4' : '#ffffff',
+                        border: isSelected ? '2px solid #00aa55' : '1px solid #cbd5e1',
                         cursor: 'pointer',
                         transition: 'all 0.25s ease',
-                        boxShadow: isSelected ? '0 0 16px rgba(0, 210, 255, 0.3)' : 'none'
+                        boxShadow: isSelected ? '0 4px 12px rgba(0, 170, 85, 0.08)' : 'none'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <strong style={{ fontSize: '0.9rem', color: '#fff' }}>{route.title}</strong>
+                        <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{route.title}</strong>
                         {route.badge && (
                           <span style={{ 
                             fontSize: '0.65rem', 
-                            background: route.badgeColor || 'var(--accent-blue)', 
-                            color: '#000', 
+                            background: colors.bg, 
+                            color: colors.text, 
                             padding: '2px 8px', 
                             borderRadius: '12px', 
                             fontWeight: 800 
@@ -1778,14 +1776,14 @@ export default function AIRoutePlanner() {
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isSelected ? 'var(--accent-blue)' : '#fff' }}>
+                        <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isSelected ? '#00aa55' : '#0f172a' }}>
                           {route.distanceKm} km
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                           • {route.durationText}
                         </span>
                       </div>
-                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.3' }}>
+                      <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0, lineHeight: '1.3' }}>
                         {route.description}
                       </p>
                     </div>
@@ -1794,16 +1792,15 @@ export default function AIRoutePlanner() {
               </div>
             </div>
           )}
-
           {/* Power2Go Recommendations & Warning Section (Below Route Strategy cards!) */}
           {tripSolved && (
-            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', background: 'rgba(12, 15, 29, 0.7)', border: '1px solid var(--border-glass)', borderRadius: '16px' }}>
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px' }}>
               
-              {/* Warning / Advisory Message Banner (Dark Navy Theme with ORANGE/YELLOW accents instead of red!) */}
+              {/* Warning / Advisory Message Banner (Light Amber Theme) */}
               {tripWarning && (
                 <div style={{
-                  background: 'rgba(255, 170, 0, 0.10)',
-                  border: '1px solid var(--accent-orange)',
+                  background: '#fffbeb',
+                  border: '1px solid #fcd34d',
                   padding: '16px 20px',
                   borderRadius: '12px',
                   display: 'flex',
@@ -1811,28 +1808,28 @@ export default function AIRoutePlanner() {
                   gap: '12px'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <AlertTriangle style={{ color: 'var(--accent-orange)', width: '20px', height: '20px', flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.85rem', color: '#ffddaa', fontWeight: 600, lineHeight: '1.4' }}>
+                    <AlertTriangle style={{ color: '#d97706', width: '20px', height: '20px', flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.85rem', color: '#b45309', fontWeight: 600, lineHeight: '1.4' }}>
                       {tripWarning}
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* AI Battery Advisory Feedback Box */}
+              {/* AI Battery Advisory Feedback Box (Light Blue/Green Theme) */}
               {tripSummary && tripSummary.aiAdvisoryMessage && (
                 <div style={{
-                  background: tripSummary.stopsCount > 0 ? 'rgba(0, 210, 255, 0.08)' : 'rgba(0, 255, 135, 0.08)',
-                  border: tripSummary.stopsCount > 0 ? '1px solid var(--accent-blue)' : '1px solid var(--accent-green)',
+                  background: tripSummary.stopsCount > 0 ? '#eff6ff' : '#eefdf4',
+                  border: tripSummary.stopsCount > 0 ? '1px solid #bfdbfe' : '1px solid #bbf7d0',
                   padding: '16px 20px',
                   borderRadius: '12px',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '12px'
                 }}>
-                  <Zap style={{ color: tripSummary.stopsCount > 0 ? 'var(--accent-blue)' : 'var(--accent-green)', width: '22px', height: '22px', flexShrink: 0, marginTop: '2px' }} />
-                  <div style={{ fontSize: '0.88rem', color: '#fff', lineHeight: '1.5' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: tripSummary.stopsCount > 0 ? 'var(--accent-blue)' : 'var(--accent-green)', marginBottom: '4px' }}>
+                  <Zap style={{ color: tripSummary.stopsCount > 0 ? '#3b82f6' : '#00aa55', width: '22px', height: '22px', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '0.88rem', color: '#0f172a', lineHeight: '1.5' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: tripSummary.stopsCount > 0 ? '#3b82f6' : '#00aa55', marginBottom: '4px' }}>
                       AI Battery & Range Advisory
                     </div>
                     {tripSummary.aiAdvisoryMessage}
@@ -1843,8 +1840,8 @@ export default function AIRoutePlanner() {
               {/* Power2Go Recommended Charging Stations Section */}
               {tripSummary && tripSummary.stops && tripSummary.stops.length > 0 && (
                 <div>
-                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Zap style={{ color: 'var(--accent-green)', width: '18px', height: '18px' }} />
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Zap style={{ color: '#00aa55', width: '18px', height: '18px' }} />
                     Power2Go Recommended Charging Hubs ({tripSummary.stops.length})
                   </h4>
 
@@ -1859,8 +1856,8 @@ export default function AIRoutePlanner() {
                           style={{
                             padding: '16px',
                             borderRadius: '12px',
-                            background: isSelected ? 'rgba(0, 255, 135, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                            border: isSelected ? '2px solid var(--accent-green)' : '1px solid var(--border-glass)',
+                            background: isSelected ? '#eefdf4' : '#ffffff',
+                            border: isSelected ? '2px solid #00aa55' : '1px solid #cbd5e1',
                             cursor: 'pointer',
                             transition: 'all 0.25s ease',
                             display: 'flex',
@@ -1871,32 +1868,32 @@ export default function AIRoutePlanner() {
                         >
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '10px', background: 'rgba(0, 255, 135, 0.2)', color: 'var(--accent-green)', fontWeight: 800 }}>
+                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '10px', background: '#eefdf4', color: '#00aa55', fontWeight: 800 }}>
                                 🟢 Power2Go Hub
                               </span>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-orange)' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706' }}>
                                 ₹{stop.chargeCost}
                               </span>
                             </div>
 
-                            <h5 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: '4px 0 2px 0' }}>
+                            <h5 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', margin: '4px 0 2px 0' }}>
                               {stop.name}
                             </h5>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.3' }}>
+                            <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0, lineHeight: '1.3' }}>
                               {stop.locationName}
                             </p>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '8px 0', borderTop: '1px solid var(--border-glass)', borderBottom: '1px solid var(--border-glass)' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '8px 0', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
                             <div>
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block' }}>Speed & Price</span>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-blue)' }}>
+                              <span style={{ fontSize: '0.65rem', color: '#64748b', display: 'block' }}>Speed & Price</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3b82f6' }}>
                                 {stop.chargerType} (₹{stop.price}/kWh)
                               </span>
                             </div>
                             <div>
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block' }}>Available Slots</span>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+                              <span style={{ fontSize: '0.65rem', color: '#64748b', display: 'block' }}>Available Slots</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#00aa55' }}>
                                 {stop.fastSlots.available} Fast free
                               </span>
                             </div>
@@ -1912,9 +1909,9 @@ export default function AIRoutePlanner() {
                               width: '100%',
                               padding: '8px 12px', 
                               fontSize: '0.78rem', 
-                              background: 'linear-gradient(135deg, var(--accent-green) 0%, #009944 100%)',
-                              boxShadow: '0 4px 12px rgba(0, 255, 135, 0.2)',
-                              color: '#000',
+                              background: '#00aa55',
+                              boxShadow: '0 2px 4px rgba(0, 170, 85, 0.15)',
+                              color: '#ffffff',
                               fontWeight: 800,
                               borderRadius: '8px'
                             }}
@@ -2050,6 +2047,6 @@ export default function AIRoutePlanner() {
       <footer style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '0.8rem', borderTop: '1px solid var(--border-glass)' }}>
         © 2026 Power2Go Startup. All rights reserved. Servicing 24/7.
       </footer>
-    </div>
+    </Layout>
   );
 }

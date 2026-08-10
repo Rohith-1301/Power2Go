@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Power, MapPin, Battery, DollarSign, Star, Navigation, CheckCircle2, ChevronRight, LogOut, Loader } from 'lucide-react';
+import Layout from '../components/Layout';
 
 interface DriverStats {
   earnings: number;
@@ -19,6 +20,7 @@ interface PendingBooking {
   location: string;
   address: string;
   remainingTime: number;
+  isTowing?: boolean;
 }
 
 export default function DriverDashboard() {
@@ -35,7 +37,8 @@ export default function DriverDashboard() {
 
   // Active job state
   const [activeJob, setActiveJob] = useState<any>(null);
-  const [jobStage, setJobStage] = useState<'accepted' | 'on_the_way' | 'arrived' | 'charging' | 'completed' | null>(null);
+  const [jobStage, setJobStage] = useState<'accepted' | 'on_the_way' | 'arrived' | 'charging' | 'repair_in_progress' | 'completed' | 'recovery_required' | 'tow_requested' | 'station_assigned' | null>(null);
+  const [isTowingActive, setIsTowingActive] = useState(false);
 
   // Charging input states
   const [chargePct, setChargePct] = useState(40);
@@ -120,7 +123,11 @@ export default function DriverDashboard() {
         return;
       }
       setDriver(parsed);
-      fetchDriverStats(parsed.driverId);
+      if (parsed.role === 'mechanic') {
+        fetchMechanicStats(parsed.driverId);
+      } else {
+        fetchDriverStats(parsed.driverId);
+      }
 
       // Auto-toggle to online status on mount
       fetch('/api/drivers/status', {
@@ -131,6 +138,43 @@ export default function DriverDashboard() {
     }
   }, [router]);
 
+  const fetchMechanicStats = async (mechanicId: string) => {
+    try {
+      const resStats = await fetch(`/api/repairs/mechanic/earnings?mechanicId=${mechanicId}`);
+      if (resStats.ok) {
+        const data = await resStats.json();
+        setStats({ earnings: data.earnings, completedCount: data.completedCount });
+      }
+
+      const resActive = await fetch(`/api/repairs/mechanic/active?mechanicId=${mechanicId}`);
+      if (resActive.ok) {
+        const data = await resActive.json();
+        if (data.activeRepair) {
+          setActiveJob(data.activeRepair);
+          setJobStage(data.activeRepair.status);
+        } else if (data.pendingRepair) {
+          setPendingRequest({
+            bookingId: data.pendingRepair.id,
+            userName: data.pendingRepair.user_name,
+            vehicleType: data.pendingRepair.vehicle_type,
+            chargingType: 'Roadside Rescue',
+            batteryPercentage: 0,
+            powerNeededKwh: 0,
+            totalAmount: 0,
+            location: data.pendingRepair.location,
+            address: getReadableAddress(data.pendingRepair.location),
+            remainingTime: 30
+          });
+          setCountdown(30);
+        } else {
+          setPendingRequest(null);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching mechanic stats:', err);
+    }
+  };
+
   const fetchDriverStats = async (driverId: string) => {
     try {
       const resStats = await fetch(`/api/drivers/orders/earnings?driverId=${driverId}`);
@@ -139,6 +183,19 @@ export default function DriverDashboard() {
         setStats({ earnings: data.earnings, completedCount: data.completedCount });
       }
 
+      // Check for active towing job first
+      const resTowing = await fetch(`/api/repairs/driver-active?driverId=${driverId}`);
+      if (resTowing.ok) {
+        const towData = await resTowing.json();
+        if (towData.activeRepair) {
+          setIsTowingActive(true);
+          setActiveJob(towData.activeRepair);
+          setJobStage(towData.activeRepair.status);
+          return;
+        }
+      }
+
+      setIsTowingActive(false);
       const resToday = await fetch(`/api/drivers/orders/today?driverId=${driverId}`);
       if (resToday.ok) {
         const data = await resToday.json();
@@ -219,14 +276,49 @@ export default function DriverDashboard() {
     if (isOnline && driver && !activeJob) {
       const pollPending = async () => {
         try {
-          const res = await fetch(`/api/bookings/driver-pending?driverId=${driver.driverId}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.pendingBooking) {
-              setPendingRequest(data.pendingBooking);
-              setCountdown(data.pendingBooking.remainingTime);
-            } else {
-              setPendingRequest(null);
+          if (driver.role === 'mechanic') {
+            const res = await fetch(`/api/repairs/mechanic/active?mechanicId=${driver.driverId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.pendingRepair) {
+                setPendingRequest({
+                  bookingId: data.pendingRepair.id,
+                  userName: data.pendingRepair.user_name,
+                  vehicleType: data.pendingRepair.vehicle_type,
+                  chargingType: 'Roadside Rescue',
+                  batteryPercentage: 0,
+                  powerNeededKwh: 0,
+                  totalAmount: 0,
+                  location: data.pendingRepair.location,
+                  address: getReadableAddress(data.pendingRepair.location),
+                  remainingTime: 30
+                });
+                setCountdown(30);
+              } else {
+                setPendingRequest(null);
+              }
+            }
+          } else {
+            // First check for pending towing recovery dispatches shifted by mechanics
+            const towRes = await fetch('/api/repairs/driver-pending');
+            if (towRes.ok) {
+              const towData = await towRes.json();
+              if (towData.pendingBooking) {
+                setPendingRequest(towData.pendingBooking);
+                setCountdown(towData.pendingBooking.remainingTime);
+                return;
+              }
+            }
+
+            const res = await fetch(`/api/bookings/driver-pending?driverId=${driver.driverId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.pendingBooking) {
+                setPendingRequest(data.pendingBooking);
+                setCountdown(data.pendingBooking.remainingTime);
+              } else {
+                setPendingRequest(null);
+              }
             }
           }
         } catch (err) {
@@ -344,7 +436,47 @@ export default function DriverDashboard() {
 
   const handleRespond = async (response: 'accept' | 'reject') => {
     if (!pendingRequest || !driver) return;
+    if (driver.role === 'mechanic') {
+      try {
+        const res = await fetch(`/api/repairs/${pendingRequest.bookingId}/mechanic/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mechanicId: driver.driverId,
+            accept: response === 'accept'
+          })
+        });
+        if (res.ok) {
+          if (response === 'accept') {
+            await fetchMechanicStats(driver.driverId);
+          }
+          setPendingRequest(null);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
+
     try {
+      if (pendingRequest.isTowing) {
+        const res = await fetch(`/api/repairs/${pendingRequest.bookingId}/driver-respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            driverId: driver.driverId,
+            accept: response === 'accept'
+          })
+        });
+        if (res.ok) {
+          if (response === 'accept') {
+            await fetchDriverStats(driver.driverId);
+          }
+          setPendingRequest(null);
+        }
+        return;
+      }
+
       const res = await fetch('/api/bookings/driver-respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -367,9 +499,56 @@ export default function DriverDashboard() {
     }
   };
 
-  // Update order stage
-  const updateStage = async (nextStage: 'on_the_way' | 'arrived' | 'charging' | 'completed') => {
+  const requestTowTruckRecovery = async () => {
     if (!activeJob) return;
+    if (confirm('Are you sure the problem is unresolvable on-site? This will dispatch a heavy flatbed tow truck and notify the customer.')) {
+      try {
+        const res = await fetch(`/api/repairs/${activeJob.id}/request-recovery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stationName: 'Power2Go – Karur Bus Stand Hub' })
+        });
+        if (res.ok) {
+          alert('Towing recovery requested successfully!');
+          setActiveJob(null);
+          setJobStage(null);
+          await fetchMechanicStats(driver.driverId);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // Update order stage
+  const updateStage = async (nextStage: 'on_the_way' | 'arrived' | 'charging' | 'completed' | 'repair_in_progress' | 'station_assigned') => {
+    if (!activeJob) return;
+    if (driver.role === 'mechanic' || isTowingActive) {
+      try {
+        const res = await fetch(`/api/repairs/${activeJob.id}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStage })
+        });
+        if (res.ok) {
+          setJobStage(nextStage as any);
+          if (nextStage === 'completed') {
+            setActiveJob(null);
+            setJobStage(null);
+            setIsTowingActive(false);
+            if (driver.role === 'mechanic') {
+              await fetchMechanicStats(driver.driverId);
+            } else {
+              await fetchDriverStats(driver.driverId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      return;
+    }
+
     try {
       const res = await fetch(`/api/bookings/${activeJob.id}/progress`, {
         method: 'POST',
@@ -431,62 +610,65 @@ export default function DriverDashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', color: 'white', padding: '24px 20px' }}>
+    <Layout
+      activeTab={driver.role === 'mechanic' ? "Mechanic Dispatch Center" : "Driver Dispatch Center"}
+      headerAction={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: isOnline ? '#00aa55' : '#64748b' }}>
+            {isOnline ? 'ONLINE' : 'OFFLINE'}
+          </span>
+          <button
+            onClick={handleOnlineToggle}
+            style={{
+              background: isOnline ? '#00aa55' : '#cbd5e1',
+              border: 'none',
+              width: '50px',
+              height: '26px',
+              borderRadius: '13px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.3s'
+            }}
+          >
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              background: 'white',
+              position: 'absolute',
+              top: '3px',
+              left: isOnline ? '27px' : '3px',
+              transition: 'all 0.3s',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }} />
+          </button>
+        </div>
+      }
+    >
       <Head>
         <title>Power2Go - Driver Dashboard</title>
       </Head>
 
-      {/* Header Panel */}
-      <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', marginBottom: '24px', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <img src={driver.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Profile" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-green)' }} />
-          <div>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: 0 }}>{driver.name}</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>Driver ID: {driver.driverId} • {driver.vehicleNumber} ({driver.vehicleType})</p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          {/* Online status switch */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: isOnline ? 'var(--accent-green)' : 'var(--text-secondary)' }}>
-              {isOnline ? 'ONLINE' : 'OFFLINE'}
-            </span>
-            <button
-              onClick={handleOnlineToggle}
-              style={{
-                background: isOnline ? 'linear-gradient(135deg, #00aa55, #008855)' : '#1f2937',
-                border: 'none',
-                width: '50px',
-                height: '26px',
-                borderRadius: '13px',
-                position: 'relative',
-                cursor: 'pointer',
-                transition: 'all 0.3s'
-              }}
-            >
-              <div style={{
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                background: 'white',
-                position: 'absolute',
-                top: '3px',
-                left: isOnline ? '27px' : '3px',
-                transition: 'all 0.3s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }} />
-            </button>
+      <div style={{ padding: '20px 0' }}>
+        {/* Info Strip */}
+        <div className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', marginBottom: '24px', borderRadius: '12px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img src={driver.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Profile" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #00aa55' }} />
+            <div>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>{driver.name}</h2>
+              <p style={{ color: '#64748b', fontSize: '0.8rem', margin: 0 }}>Driver ID: {driver.driverId} • {driver.vehicleNumber} ({driver.vehicleType})</p>
+            </div>
           </div>
 
-          <button onClick={handleLogout} className="glass-button" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '0.8rem' }}>
-            <LogOut style={{ width: '14px' }} /> Log Out
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
+              Status: <span style={{ color: isOnline ? '#00aa55' : '#ef4444' }}>{isOnline ? 'Active & Ready' : 'Offline'}</span>
+            </div>
+          </div>
         </div>
-      </div>
 
       {/* Main Grid Content */}
-      <div style={{ display: 'grid', gridTemplateColumns: activeJob ? '1fr' : '1.5fr 1fr', gap: '24px' }}>
+      <div className="dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: activeJob ? '1fr' : '1.5fr 1fr', gap: '24px' }}>
         
         {/* Stats and job view */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -498,41 +680,97 @@ export default function DriverDashboard() {
                 <span className="pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-green)' }} /> Active Booking Dispatch
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px' }}>
+              <div className="active-job-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '30px' }}>
                 <div>
                   <h3 style={{ fontSize: '1.4rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>Customer: {activeJob.user_name}</h3>
                   <p style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '12px' }}>
                     <MapPin style={{ color: 'var(--accent-red)', width: '16px' }} /> {activeJob.location ? getReadableAddress(activeJob.location) : 'N/A'}
                   </p>
                   
-                  <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-                    <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>EST. ENERGY</span>
-                      <strong style={{ fontSize: '0.95rem', color: 'var(--accent-green)' }}>{activeJob.power_needed_kwh || 0} kWh</strong>
+                  {driver.role === 'mechanic' ? (
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+                      <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>VEHICLE</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--accent-green)', textTransform: 'capitalize' }}>{activeJob.vehicle_type}</strong>
+                      </div>
+                      <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>PLATE</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--accent-blue)' }}>{activeJob.vehicle_number}</strong>
+                      </div>
+                      <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>SERVICE</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--accent-orange)' }}>Roadside Rescue</strong>
+                      </div>
                     </div>
-                    <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>EST. PAY</span>
-                      <strong style={{ fontSize: '0.95rem', color: 'var(--accent-blue)' }}>₹{activeJob.total_amount || 0}</strong>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+                      <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>EST. ENERGY</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--accent-green)' }}>{activeJob.power_needed_kwh || 0} kWh</strong>
+                      </div>
+                      <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>EST. PAY</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--accent-blue)' }}>₹{activeJob.total_amount || 0}</strong>
+                      </div>
+                      <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>CHARGER</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--accent-orange)' }}>{activeJob.charging_type}</strong>
+                      </div>
                     </div>
-                    <div className="metric-chip" style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>CHARGER</span>
-                      <strong style={{ fontSize: '0.95rem', color: 'var(--accent-orange)' }}>{activeJob.charging_type}</strong>
+                  )}
+
+                  {/* Description & Photo details for Mechanic */}
+                  {driver.role === 'mechanic' && (
+                    <div style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Problem Description:</span>
+                      <p style={{ fontSize: '0.85rem', margin: '0 0 10px 0', color: '#fff' }}>"{activeJob.description}"</p>
+                      {activeJob.photo_url && (
+                        <div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Uploaded Photo:</span>
+                          <img src={activeJob.photo_url} alt="Breakdown uploader" style={{ maxHeight: '120px', borderRadius: '6px', border: '1px solid var(--border-glass)' }} />
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
 
                   {/* Stage Navigator Actions */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {jobStage === 'recovery_required' && (
+                      <button onClick={() => updateStage('on_the_way')} className="action-btn" style={{ background: 'linear-gradient(135deg, #0088ff, #0055ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                        <Navigation style={{ width: '18px' }} /> Start Towing Navigation (Go on the Way)
+                      </button>
+                    )}
                     {jobStage === 'accepted' && (
                       <button onClick={() => updateStage('on_the_way')} className="action-btn" style={{ background: 'linear-gradient(135deg, #0088ff, #0055ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
                         <Navigation style={{ width: '18px' }} /> Start Navigation (Go on the Way)
                       </button>
                     )}
-                    {jobStage === 'on_the_way' && (
+                    {jobStage === 'on_the_way' && isTowingActive && (
+                      <button onClick={() => updateStage('arrived')} className="action-btn" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                        📍 Arrived & Loaded Customer EV
+                      </button>
+                    )}
+                    {jobStage === 'on_the_way' && !isTowingActive && (
                       <button onClick={() => updateStage('arrived')} className="action-btn" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
                         📍 Arrived at Customer Location
                       </button>
                     )}
-                    {jobStage === 'arrived' && (
+                    {jobStage === 'arrived' && driver.role === 'mechanic' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button onClick={() => updateStage('repair_in_progress')} className="action-btn" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                          🔧 Start Diagnostic Repair Work
+                        </button>
+                        <button onClick={requestTowTruckRecovery} className="action-btn" style={{ background: 'linear-gradient(135deg, var(--accent-red), #b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                          🚛 Issue Unresolvable: Request Tow Truck
+                        </button>
+                      </div>
+                    )}
+                    {jobStage === 'arrived' && isTowingActive && (
+                      <button onClick={() => updateStage('station_assigned')} className="action-btn" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                        🚛 Start Transport to Hub Station
+                      </button>
+                    )}
+                    {jobStage === 'arrived' && driver.role === 'driver' && !isTowingActive && (
                       <button onClick={() => updateStage('charging')} className="action-btn" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
                         ⚡ Start Charging Session
                       </button>
@@ -540,6 +778,21 @@ export default function DriverDashboard() {
                     {jobStage === 'charging' && (
                       <button onClick={() => updateStage('completed')} className="action-btn" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
                         <CheckCircle2 style={{ width: '18px' }} /> Complete Charging (Save & Close Job)
+                      </button>
+                    )}
+                    {jobStage === 'repair_in_progress' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button onClick={() => updateStage('completed')} className="action-btn" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                          <CheckCircle2 style={{ width: '18px' }} /> Mark Repair Complete (Save & Close)
+                        </button>
+                        <button onClick={requestTowTruckRecovery} className="action-btn" style={{ background: 'linear-gradient(135deg, var(--accent-red), #b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                          🚛 Issue Unresolvable: Request Tow Truck
+                        </button>
+                      </div>
+                    )}
+                    {jobStage === 'station_assigned' && (
+                      <button onClick={() => updateStage('completed')} className="action-btn" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', fontSize: '0.9rem', fontWeight: 'bold', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer' }}>
+                        <CheckCircle2 style={{ width: '18px' }} /> ✅ Mark Towing Completed (Deliver EV)
                       </button>
                     )}
                   </div>
@@ -595,7 +848,7 @@ export default function DriverDashboard() {
           ) : null}
 
           {/* Core Stats Overview */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
             <div className="glass-panel" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{ background: 'rgba(0,170,85,0.1)', padding: '12px', borderRadius: '8px' }}>
                 <DollarSign style={{ color: 'var(--accent-green)', width: '24px', height: '24px' }} />
@@ -726,6 +979,7 @@ export default function DriverDashboard() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 }

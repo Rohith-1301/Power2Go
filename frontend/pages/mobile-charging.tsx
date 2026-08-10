@@ -1,7 +1,29 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { ArrowLeft, Bike, Car, Truck, MapPin, CheckCircle, Smartphone, HelpCircle, QrCode, ShieldCheck, Loader, Star } from 'lucide-react';
+import Layout from '@/components/Layout';
+
+const TrackingMap = React.memo(({ url }: { url: string }) => {
+  if (!url) {
+    return (
+      <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+        Map becomes active when driver is assigned
+      </div>
+    );
+  }
+  return (
+    <iframe
+      src={url}
+      width="100%"
+      height="100%"
+      style={{ border: 0 }}
+      allowFullScreen={true}
+      loading="lazy"
+    />
+  );
+});
+TrackingMap.displayName = 'TrackingMap';
 
 
 interface User {
@@ -25,6 +47,8 @@ export default function MobileCharging() {
   // Active tracking states
   const [activeBooking, setActiveBooking] = useState<any>(null);
   const [activeDriver, setActiveDriver] = useState<any>(null);
+  const [mapUrl, setMapUrl] = useState('');
+  const lastMapUpdateRef = useRef<number>(0);
   const [completedBookingId, setCompletedBookingId] = useState<number | null>(null);
   const [rating, setRating] = useState(5);
   const [feedbackText, setFeedbackText] = useState('');
@@ -75,11 +99,26 @@ export default function MobileCharging() {
             setActiveBooking(data.activeBooking);
             setActiveDriver(data.driver);
             setCompletedBookingId(data.activeBooking.id);
+            if (data.driver && data.activeBooking.location) {
+              const dest = getDestinationCoords(data.activeBooking.location);
+              const url = `https://www.google.com/maps?saddr=${data.driver.lat},${data.driver.lng}&daddr=${dest}&output=embed`;
+              setMapUrl(prev => {
+                const now = Date.now();
+                if (!prev || now - lastMapUpdateRef.current > 15000) {
+                  if (prev !== url) {
+                    lastMapUpdateRef.current = now;
+                    return url;
+                  }
+                }
+                return prev;
+              });
+            }
           } else {
             // Trigger feedback dialog if booking completes
             if (activeBooking) {
               setActiveBooking(null);
               setActiveDriver(null);
+              setMapUrl('');
               setShowFeedbackModal(true);
             }
           }
@@ -289,40 +328,10 @@ export default function MobileCharging() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Layout>
       <Head>
         <title>Power2Go - Mobile Charging Order</title>
       </Head>
-
-      {/* Header Bar */}
-      <header className="glass-panel" style={{
-        margin: '20px',
-        padding: '15px 30px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '20px',
-        borderRadius: '16px'
-      }}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
-          <ArrowLeft style={{ width: '20px' }} />
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Smartphone style={{ color: 'var(--accent-blue)', width: '24px' }} />
-          <h1 className="gradient-text" style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-            Mobile Charging Order
-          </h1>
-        </div>
-      </header>
 
       {/* Main Container */}
       <main className="container" style={{ flex: 1, paddingTop: '10px' }}>
@@ -415,20 +424,7 @@ export default function MobileCharging() {
 
               {/* Live route tracking map */}
               <div style={{ flex: '1 1 300px', height: '350px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
-                {activeDriver && activeBooking.location ? (
-                  <iframe
-                    src={`https://www.google.com/maps?saddr=${activeDriver.lat},${activeDriver.lng}&daddr=${getDestinationCoords(activeBooking.location)}&output=embed`}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen={true}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Map becomes active when driver is assigned
-                  </div>
-                )}
+                <TrackingMap url={mapUrl} />
               </div>
             </div>
           </div>
@@ -437,31 +433,31 @@ export default function MobileCharging() {
             
             {/* Floating Rates Banner */}
             <div className="glass-panel" style={{
-          padding: '15px 25px',
-          marginBottom: '30px',
-          display: 'flex',
-          justifyContent: 'space-around',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '15px',
-          borderColor: 'var(--accent-blue-glow)',
-          background: 'rgba(0, 210, 255, 0.05)'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Normal Price</span>
-            <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>₹13 / pkw (kWh)</span>
-          </div>
-          <div style={{ width: '1px', height: '30px', background: 'var(--border-glass)' }}></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Fast Price</span>
-            <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-green)' }}>₹18 / pkw (kWh)</span>
-          </div>
-          <div style={{ width: '1px', height: '30px', background: 'var(--border-glass)' }}></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Travel Distance Fee</span>
-            <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-blue)' }}>₹20 / km</span>
-          </div>
-        </div>
+              padding: '15px 25px',
+              marginBottom: '30px',
+              display: 'flex',
+              justifyContent: 'space-around',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '15px',
+              borderColor: '#bfdbfe',
+              background: '#eff6ff'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Normal Price</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a' }}>₹13 / pkw (kWh)</span>
+              </div>
+              <div style={{ width: '1px', height: '30px', background: '#cbd5e1' }}></div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Fast Price</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#00aa55' }}>₹18 / pkw (kWh)</span>
+              </div>
+              <div style={{ width: '1px', height: '30px', background: '#cbd5e1' }}></div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>Travel Distance Fee</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#3b82f6' }}>₹20 / km</span>
+              </div>
+            </div>
 
         {/* Form and Preview Layout */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
@@ -482,12 +478,13 @@ export default function MobileCharging() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '8px',
-                    borderColor: vehicleType === 'motorcycle' ? 'var(--accent-blue)' : 'var(--border-glass)',
-                    background: vehicleType === 'motorcycle' ? 'rgba(0, 210, 255, 0.1)' : ''
+                    borderColor: vehicleType === 'motorcycle' ? '#00aa55' : '#cbd5e1',
+                    background: vehicleType === 'motorcycle' ? '#eefdf4' : '#ffffff',
+                    color: vehicleType === 'motorcycle' ? '#00aa55' : '#475569'
                   }}
                 >
-                  <Bike style={{ width: '24px', height: '24px', color: vehicleType === 'motorcycle' ? 'var(--accent-blue)' : 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: '0.8rem' }}>Motorcycle</span>
+                  <Bike style={{ width: '24px', height: '24px', color: vehicleType === 'motorcycle' ? '#00aa55' : '#64748b' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Motorcycle</span>
                 </button>
                 
                 <button
@@ -499,12 +496,13 @@ export default function MobileCharging() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '8px',
-                    borderColor: vehicleType === 'car' ? 'var(--accent-blue)' : 'var(--border-glass)',
-                    background: vehicleType === 'car' ? 'rgba(0, 210, 255, 0.1)' : ''
+                    borderColor: vehicleType === 'car' ? '#00aa55' : '#cbd5e1',
+                    background: vehicleType === 'car' ? '#eefdf4' : '#ffffff',
+                    color: vehicleType === 'car' ? '#00aa55' : '#475569'
                   }}
                 >
-                  <Car style={{ width: '24px', height: '24px', color: vehicleType === 'car' ? 'var(--accent-blue)' : 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: '0.8rem' }}>Car</span>
+                  <Car style={{ width: '24px', height: '24px', color: vehicleType === 'car' ? '#00aa55' : '#64748b' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Car</span>
                 </button>
 
                 <button
@@ -516,12 +514,13 @@ export default function MobileCharging() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '8px',
-                    borderColor: vehicleType === 'heavy' ? 'var(--accent-blue)' : 'var(--border-glass)',
-                    background: vehicleType === 'heavy' ? 'rgba(0, 210, 255, 0.1)' : ''
+                    borderColor: vehicleType === 'heavy' ? '#00aa55' : '#cbd5e1',
+                    background: vehicleType === 'heavy' ? '#eefdf4' : '#ffffff',
+                    color: vehicleType === 'heavy' ? '#00aa55' : '#475569'
                   }}
                 >
-                  <Truck style={{ width: '24px', height: '24px', color: vehicleType === 'heavy' ? 'var(--accent-blue)' : 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: '0.8rem' }}>Heavy</span>
+                  <Truck style={{ width: '24px', height: '24px', color: vehicleType === 'heavy' ? '#00aa55' : '#64748b' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Heavy</span>
                 </button>
               </div>
             </div>
@@ -530,7 +529,7 @@ export default function MobileCharging() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Current Battery Power</h3>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#00aa55' }}>
                   {batteryPercentage}%
                 </span>
               </div>
@@ -539,7 +538,7 @@ export default function MobileCharging() {
                 min="0"
                 max="100"
                 className="glass-input"
-                style={{ height: '8px', padding: 0 }}
+                style={{ height: '8px', padding: 0, accentColor: '#00aa55' }}
                 value={batteryPercentage}
                 onChange={(e) => setBatteryPercentage(parseInt(e.target.value))}
               />
@@ -558,9 +557,10 @@ export default function MobileCharging() {
                   onClick={() => setChargingType('normal')}
                   className="glass-input"
                   style={{
-                    borderColor: chargingType === 'normal' ? 'var(--accent-blue)' : 'var(--border-glass)',
-                    background: chargingType === 'normal' ? 'rgba(0, 210, 255, 0.1)' : '',
-                    fontWeight: chargingType === 'normal' ? 600 : 400
+                    borderColor: chargingType === 'normal' ? '#00aa55' : '#cbd5e1',
+                    background: chargingType === 'normal' ? '#eefdf4' : '#ffffff',
+                    color: chargingType === 'normal' ? '#00aa55' : '#475569',
+                    fontWeight: 600
                   }}
                 >
                   Normal Charge (13/pkw)
@@ -570,10 +570,10 @@ export default function MobileCharging() {
                   onClick={() => setChargingType('fast')}
                   className="glass-input"
                   style={{
-                    borderColor: chargingType === 'fast' ? 'var(--accent-blue)' : 'var(--border-glass)',
-                    background: chargingType === 'fast' ? 'rgba(0, 210, 255, 0.1)' : '',
-                    color: chargingType === 'fast' ? 'var(--accent-green)' : '#fff',
-                    fontWeight: chargingType === 'fast' ? 600 : 400
+                    borderColor: chargingType === 'fast' ? '#00aa55' : '#cbd5e1',
+                    background: chargingType === 'fast' ? '#eefdf4' : '#ffffff',
+                    color: chargingType === 'fast' ? '#00aa55' : '#475569',
+                    fontWeight: 600
                   }}
                 >
                   Fast Charge (18/pkw)
@@ -595,10 +595,13 @@ export default function MobileCharging() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
-                    borderColor: 'var(--accent-blue)'
+                    border: '1px solid #cbd5e1',
+                    background: '#f1f5f9',
+                    color: '#00aa55',
+                    fontWeight: 600
                   }}
                 >
-                  <MapPin style={{ width: '18px', color: 'var(--accent-blue)' }} />
+                  <MapPin style={{ width: '18px', color: '#00aa55' }} />
                   Share Your Live Location
                 </button>
               ) : (
@@ -606,15 +609,15 @@ export default function MobileCharging() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
-                  background: 'rgba(0, 255, 135, 0.05)',
-                  border: '1px solid var(--accent-green)',
+                  background: '#eefdf4',
+                  border: '1px solid #bbf7d0',
                   borderRadius: '8px',
                   padding: '12px 16px'
                 }}>
-                  <CheckCircle style={{ color: 'var(--accent-green)', width: '20px', flexShrink: 0 }} />
+                  <CheckCircle style={{ color: '#00aa55', width: '20px', flexShrink: 0 }} />
                   <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--accent-green)', fontWeight: 600 }}>Location Shared</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#00aa55', fontWeight: 600 }}>Location Shared</div>
+                    <div style={{ fontSize: '0.85rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {locationAddress}
                     </div>
                   </div>
@@ -671,11 +674,11 @@ export default function MobileCharging() {
                     alignItems: 'center',
                     gap: '8px',
                     cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid var(--border-glass)',
                     padding: '10px 14px',
                     borderRadius: '8px',
-                    borderColor: paymentType === 'online' ? 'var(--accent-blue)' : 'var(--border-glass)'
+                    border: '1px solid',
+                    borderColor: paymentType === 'online' ? '#00aa55' : '#cbd5e1',
+                    background: '#ffffff'
                   }}>
                     <input
                       type="radio"
@@ -683,8 +686,9 @@ export default function MobileCharging() {
                       value="online"
                       checked={paymentType === 'online'}
                       onChange={() => setPaymentType('online')}
+                      style={{ accentColor: '#00aa55' }}
                     />
-                    <span style={{ fontSize: '0.85rem' }}>Online Pay</span>
+                    <span style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 500 }}>Online Pay</span>
                   </label>
 
                   <label style={{
@@ -692,11 +696,11 @@ export default function MobileCharging() {
                     alignItems: 'center',
                     gap: '8px',
                     cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid var(--border-glass)',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
                     padding: '10px 14px',
                     borderRadius: '8px',
-                    borderColor: paymentType === 'cod' ? 'var(--accent-blue)' : 'var(--border-glass)'
+                    borderColor: paymentType === 'cod' ? '#00aa55' : '#cbd5e1'
                   }}>
                     <input
                       type="radio"
@@ -704,25 +708,26 @@ export default function MobileCharging() {
                       value="cod"
                       checked={paymentType === 'cod'}
                       onChange={() => setPaymentType('cod')}
+                      style={{ accentColor: '#00aa55' }}
                     />
-                    <span style={{ fontSize: '0.85rem' }}>Cash on Delivery</span>
+                    <span style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 500 }}>Cash on Delivery</span>
                   </label>
                 </div>
               </div>
 
               {/* Total Card */}
               <div style={{
-                background: 'rgba(255,255,255,0.02)',
+                background: '#eefdf4',
                 padding: '20px',
                 borderRadius: '12px',
-                border: '1px solid var(--border-glass)',
+                border: '1px solid #bbf7d0',
                 marginBottom: '20px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-secondary)' }}>Total Payable</span>
-                <span className="gradient-text" style={{ fontSize: '1.8rem', fontWeight: 800 }}>
+                <span style={{ fontWeight: 600, fontSize: '1rem', color: '#475569' }}>Total Payable</span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#00aa55' }}>
                   ₹{totalAmount.toFixed(2)}
                 </span>
               </div>
@@ -931,6 +936,6 @@ export default function MobileCharging() {
           </div>
         </div>
       )}
-    </div>
+    </Layout>
   );
 }

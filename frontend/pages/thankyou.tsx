@@ -11,6 +11,7 @@ interface BookingDetails {
   location?: string;
   stationName?: string;
   delayMinutes?: number;
+  selectedServices?: any[];
 }
 
 export default function ThankYou() {
@@ -187,7 +188,7 @@ export default function ThankYou() {
 
 
         {/* Live Tracker Main Panel */}
-        <div className="glass-panel" style={{ padding: '30px', textAlign: 'center' }}>
+        <div className="glass-panel" style={{ padding: '30px', textAlign: 'center', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)' }}>
           
           {/* Header circular logo badge */}
           <div style={{
@@ -195,13 +196,13 @@ export default function ThankYou() {
             height: '90px',
             borderRadius: '50%',
             background: '#ffffff',
-            border: '2px solid var(--accent-blue)',
+            border: '2px solid #00aa55',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 15px auto',
             overflow: 'hidden',
-            boxShadow: '0 0 15px var(--accent-blue-glow)'
+            boxShadow: '0 4px 12px rgba(0, 170, 85, 0.15)'
           }}>
             <img 
               src="/logo.png" 
@@ -214,12 +215,12 @@ export default function ThankYou() {
             />
           </div>
 
-          <h2 className="gradient-text-green" style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '6px' }}>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#00aa55', marginBottom: '6px' }}>
             {booking?.serviceType === 'Station Pre-booking' 
               ? 'Slot Reserved Successfully!' 
               : (trackingStep === 'arrived' ? 'Order Arrived!' : 'Electricity Dispatched!')}
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '20px' }}>
+          <p style={{ color: '#475569', fontSize: '0.95rem', marginBottom: '20px' }}>
             {booking?.serviceType === 'Station Pre-booking' 
               ? `Your slot reservation is locked. Please scan reservation pass at hub entrance.`
               : (trackingStep === 'arrived' ? 'The charging van is here and refueling your battery.' : 'Our mobile power specialist is en-route to deliver charge.')}
@@ -229,14 +230,14 @@ export default function ThankYou() {
             /* Ticket reservation details for station pre-bookings */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '25px' }}>
               <div className="glass-panel" style={{
-                background: 'rgba(0, 255, 135, 0.03)',
-                border: '2px dashed var(--accent-green)',
+                background: '#eefdf4',
+                border: '2px dashed #00aa55',
                 padding: '30px',
                 borderRadius: '16px',
                 textAlign: 'center',
-                boxShadow: '0 0 20px rgba(0, 255, 135, 0.1)'
+                boxShadow: '0 4px 12px rgba(0, 170, 85, 0.05)'
               }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700, display: 'block', marginBottom: '10px' }}>
+                <span style={{ fontSize: '0.75rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700, display: 'block', marginBottom: '10px' }}>
                   Hub Reservation Ticket
                 </span>
                 
@@ -251,52 +252,66 @@ export default function ThankYou() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 15px rgba(255,255,255,0.05)'
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
                 }}>
                   <QrCode style={{ width: '100%', height: '100%', color: '#000' }} />
                 </div>
                 
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
                   {booking.stationName}
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--accent-orange)', fontWeight: 600 }}>
+                <p style={{ fontSize: '0.85rem', color: '#d97706', fontWeight: 600 }}>
                   Arrival Hold: Within {booking.delayMinutes} Mins
                 </p>
                 
                 <div style={{ 
                   marginTop: '20px', 
-                  borderTop: '1px dashed var(--border-glass)', 
+                  borderTop: '1px dashed #cbd5e1', 
                   paddingTop: '15px',
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
                   gap: '10px',
                   fontSize: '0.8rem',
-                  color: 'var(--text-secondary)'
+                  color: '#64748b'
                 }}>
                   <div style={{ textAlign: 'left' }}>
                     <span>Hold Deposit paid:</span>
-                    <strong style={{ display: 'block', color: '#fff', fontSize: '0.95rem', marginTop: '2px' }}>₹{booking.totalAmount.toFixed(2)}</strong>
+                    <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.95rem', marginTop: '2px' }}>₹{booking.totalAmount.toFixed(2)}</strong>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span>Vehicle Type:</span>
-                    <strong style={{ display: 'block', color: '#fff', fontSize: '0.95rem', marginTop: '2px', textTransform: 'capitalize' }}>{booking.vehicleType}</strong>
+                    <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.95rem', marginTop: '2px', textTransform: 'capitalize' }}>{booking.vehicleType}</strong>
                   </div>
                 </div>
+
+                {booking.selectedServices && booking.selectedServices.length > 0 && (
+                  <div style={{ marginTop: '15px', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', textAlign: 'left', fontSize: '0.8rem' }}>
+                    <span style={{ color: '#475569', display: 'block', marginBottom: '6px', fontWeight: 600 }}>Booked EV Services:</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {booking.selectedServices.map((service: any, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', color: '#334155', fontSize: '0.78rem' }}>
+                          <span>{service.name}</span>
+                          <strong>{service.price > 0 ? `₹${service.price}` : 'Store Add-on'}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div style={{
-                background: 'rgba(0, 210, 255, 0.05)',
-                border: '1px solid rgba(0, 210, 255, 0.2)',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
                 padding: '12px 16px',
                 borderRadius: '8px',
                 fontSize: '0.8rem',
-                color: 'var(--text-secondary)',
+                color: '#1e3a8a',
                 textAlign: 'left',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '10px'
               }}>
-                <ShieldCheck style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
+                <ShieldCheck style={{ color: '#3b82f6', flexShrink: 0 }} />
                 <span>Show this QR code ticket at the entrance terminal. Your reserved slot is locked for your plate number.</span>
               </div>
             </div>
@@ -305,10 +320,10 @@ export default function ThankYou() {
             <>
               {/* Interactive Delivery Tracker Map */}
               <div style={{
-                background: '#090a0f',
+                background: '#f1f5f9',
                 height: '300px',
                 borderRadius: '12px',
-                border: '1px solid var(--border-glass)',
+                border: '1px solid #cbd5e1',
                 position: 'relative',
                 overflow: 'hidden',
                 marginBottom: '20px'
@@ -323,8 +338,8 @@ export default function ThankYou() {
                     loading="lazy"
                   />
                 ) : (
-                  <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', gap: '12px' }}>
-                    <Loader className="spin" style={{ color: 'var(--accent-blue)', width: '24px', height: '24px' }} />
+                  <div style={{ width: '100%', height: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: '#64748b', gap: '12px' }}>
+                    <Loader className="spin" style={{ color: '#00aa55', width: '24px', height: '24px' }} />
                     <span>Map becomes active when driver is assigned</span>
                   </div>
                 )}
@@ -334,32 +349,33 @@ export default function ThankYou() {
                   position: 'absolute',
                   top: '15px',
                   right: '15px',
-                  background: 'rgba(0,0,0,0.7)',
+                  background: 'rgba(15, 23, 42, 0.85)',
                   padding: '6px 12px',
                   borderRadius: '20px',
-                  border: '1px solid var(--border-glass)',
+                  border: '1px solid #334155',
                   fontSize: '0.8rem',
+                  color: '#ffffff',
                   fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
                   zIndex: 10
                 }}>
-                  <Clock style={{ width: '12px', color: 'var(--accent-orange)' }} />
+                  <Clock style={{ width: '12px', color: '#f59e0b' }} />
                   <span>ETA: {eta} mins ({trackingProgress}%)</span>
                 </div>
               </div>
 
               {/* Swiggy Style Stepper Tracker Progress timeline */}
               <div style={{
-                background: 'rgba(255,255,255,0.01)',
-                border: '1px solid var(--border-glass)',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
                 borderRadius: '12px',
                 padding: '20px',
                 textAlign: 'left',
                 marginBottom: '20px'
               }}>
-                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: '15px' }}>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a', marginBottom: '15px' }}>
                   Electricity Delivery Status
                 </h4>
                 
@@ -376,16 +392,16 @@ export default function ThankYou() {
                           width: '16px',
                           height: '16px',
                           borderRadius: '50%',
-                          background: step.checked ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)',
-                          border: step.checked ? 'none' : '1px solid var(--border-glass)',
-                          boxShadow: step.checked ? '0 0 8px var(--accent-green-glow)' : 'none',
+                          background: step.checked ? '#00aa55' : '#e2e8f0',
+                          border: step.checked ? 'none' : '1px solid #cbd5e1',
+                          boxShadow: step.checked ? '0 0 8px rgba(0, 170, 85, 0.25)' : 'none',
                           transition: 'all 0.3s ease'
                         }}></div>
-                        {idx !== 3 && <div style={{ width: '2px', height: '24px', background: step.checked ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)' }}></div>}
+                        {idx !== 3 && <div style={{ width: '2px', height: '24px', background: step.checked ? '#00aa55' : '#cbd5e1' }}></div>}
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: step.checked ? '#fff' : 'var(--text-muted)' }}>{step.label}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{step.desc}</div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: step.checked ? '#0f172a' : '#64748b' }}>{step.label}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{step.desc}</div>
                       </div>
                     </div>
                   ))}
@@ -398,26 +414,26 @@ export default function ThankYou() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '15px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid var(--border-glass)',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
                   padding: '16px',
                   borderRadius: '12px',
                   textAlign: 'left',
                   marginBottom: '25px'
                 }}>
-                  <img src={activeDriver.profile_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Driver Profile" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--accent-blue)', boxShadow: '0 0 10px var(--accent-blue-glow)' }} />
+                  <img src={activeDriver.profile_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt="Driver Profile" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #cbd5e1' }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Driver: {activeDriver.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Mobile Charging Specialist • <span style={{ color: 'var(--accent-blue)', fontWeight: 'bold' }}>📞 {activeDriver.mobile}</span></div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', marginTop: '2px' }}>Vehicle: {activeDriver.vehicle_number} ({activeDriver.vehicle_type})</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>Driver: {activeDriver.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#475569' }}>Mobile Charging Specialist • <span style={{ color: '#00aa55', fontWeight: 'bold' }}>📞 {activeDriver.mobile}</span></div>
+                    <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>Vehicle: {activeDriver.vehicle_number} ({activeDriver.vehicle_type})</div>
                   </div>
                   <div style={{
-                    background: 'rgba(0, 255, 135, 0.1)',
-                    border: '1px solid var(--accent-green)',
+                    background: '#eefdf4',
+                    border: '1px solid #bbf7d0',
                     borderRadius: '20px',
                     padding: '4px 10px',
                     fontSize: '0.75rem',
-                    color: 'var(--accent-green)',
+                    color: '#00aa55',
                     fontWeight: 600
                   }}>
                     Assigned
@@ -428,16 +444,16 @@ export default function ThankYou() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
-                  background: 'rgba(255,255,255,0.01)',
-                  border: '1px dashed var(--border-glass)',
+                  background: '#f8fafc',
+                  border: '1px dashed #cbd5e1',
                   padding: '16px',
                   borderRadius: '12px',
                   textAlign: 'left',
                   marginBottom: '25px',
                   justifyContent: 'center'
                 }}>
-                  <Loader className="spin" style={{ color: 'var(--accent-blue)', width: '20px', height: '20px' }} />
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matching closest charging vehicle... Please hold on.</span>
+                  <Loader className="spin" style={{ color: '#00aa55', width: '20px', height: '20px' }} />
+                  <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Matching closest charging vehicle... Please hold on.</span>
                 </div>
               )}
             </>

@@ -1,7 +1,29 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { ArrowLeft, Bike, Car, Truck, MapPin, CheckCircle, ShieldAlert, QrCode, ShieldCheck, Loader, Star } from 'lucide-react';
+import Layout from '@/components/Layout';
+
+const TrackingMap = React.memo(({ url }: { url: string }) => {
+  if (!url) {
+    return (
+      <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+        Map becomes active when driver is assigned
+      </div>
+    );
+  }
+  return (
+    <iframe
+      src={url}
+      width="100%"
+      height="100%"
+      style={{ border: 0 }}
+      allowFullScreen={true}
+      loading="lazy"
+    />
+  );
+});
+TrackingMap.displayName = 'TrackingMap';
 
 
 interface User {
@@ -24,6 +46,8 @@ export default function EmergencyCharging() {
   // Active tracking states
   const [activeBooking, setActiveBooking] = useState<any>(null);
   const [activeDriver, setActiveDriver] = useState<any>(null);
+  const [mapUrl, setMapUrl] = useState('');
+  const lastMapUpdateRef = useRef<number>(0);
   const [completedBookingId, setCompletedBookingId] = useState<number | null>(null);
   const [rating, setRating] = useState(5);
   const [feedbackText, setFeedbackText] = useState('');
@@ -73,11 +97,26 @@ export default function EmergencyCharging() {
             setActiveBooking(data.activeBooking);
             setActiveDriver(data.driver);
             setCompletedBookingId(data.activeBooking.id);
+            if (data.driver && data.activeBooking.location) {
+              const dest = getDestinationCoords(data.activeBooking.location);
+              const url = `https://www.google.com/maps?saddr=${data.driver.lat},${data.driver.lng}&daddr=${dest}&output=embed`;
+              setMapUrl(prev => {
+                const now = Date.now();
+                if (!prev || now - lastMapUpdateRef.current > 15000) {
+                  if (prev !== url) {
+                    lastMapUpdateRef.current = now;
+                    return url;
+                  }
+                }
+                return prev;
+              });
+            }
           } else {
             // Trigger feedback dialog if booking completes
             if (activeBooking) {
               setActiveBooking(null);
               setActiveDriver(null);
+              setMapUrl('');
               setShowFeedbackModal(true);
             }
           }
@@ -281,7 +320,7 @@ export default function EmergencyCharging() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Layout>
       <Head>
         <title>Power2Go - SOS Emergency Charging</title>
       </Head>
@@ -294,37 +333,6 @@ export default function EmergencyCharging() {
             radial-gradient(circle at 90% 80%, rgba(255, 159, 0, 0.05) 0%, transparent 40%) !important;
         }
       `}</style>
-
-      {/* Header Bar */}
-      <header className="glass-panel" style={{
-        margin: '20px',
-        padding: '15px 30px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '20px',
-        borderRadius: '16px',
-        borderColor: 'rgba(255, 42, 95, 0.4)'
-      }}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
-          <ArrowLeft style={{ width: '20px' }} />
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ShieldAlert style={{ color: 'var(--accent-red)', width: '24px' }} />
-          <h1 className="gradient-text-red" style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-            SOS Emergency Charging
-          </h1>
-        </div>
-      </header>
 
       {/* Main Container */}
       <main className="container" style={{ flex: 1, paddingTop: '10px' }}>
@@ -417,20 +425,7 @@ export default function EmergencyCharging() {
 
               {/* Live route tracking map */}
               <div style={{ flex: '1 1 300px', height: '350px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
-                {activeDriver && activeBooking.location ? (
-                  <iframe
-                    src={`https://www.google.com/maps?saddr=${activeDriver.lat},${activeDriver.lng}&daddr=${getDestinationCoords(activeBooking.location)}&output=embed`}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen={true}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', background: '#0e1227', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Map becomes active when driver is assigned
-                  </div>
-                )}
+                <TrackingMap url={mapUrl} />
               </div>
             </div>
           </div>
@@ -634,11 +629,11 @@ export default function EmergencyCharging() {
                     alignItems: 'center',
                     gap: '8px',
                     cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid var(--border-glass)',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
                     padding: '10px 14px',
                     borderRadius: '8px',
-                    borderColor: paymentType === 'online' ? 'var(--accent-red)' : 'var(--border-glass)'
+                    borderColor: paymentType === 'online' ? '#ef4444' : '#cbd5e1'
                   }}>
                     <input
                       type="radio"
@@ -646,8 +641,9 @@ export default function EmergencyCharging() {
                       value="online"
                       checked={paymentType === 'online'}
                       onChange={() => setPaymentType('online')}
+                      style={{ accentColor: '#ef4444' }}
                     />
-                    <span style={{ fontSize: '0.85rem' }}>Online Pay</span>
+                    <span style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 500 }}>Online Pay</span>
                   </label>
 
                   <label style={{
@@ -655,11 +651,11 @@ export default function EmergencyCharging() {
                     alignItems: 'center',
                     gap: '8px',
                     cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid var(--border-glass)',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
                     padding: '10px 14px',
                     borderRadius: '8px',
-                    borderColor: paymentType === 'cod' ? 'var(--accent-red)' : 'var(--border-glass)'
+                    borderColor: paymentType === 'cod' ? '#ef4444' : '#cbd5e1'
                   }}>
                     <input
                       type="radio"
@@ -667,25 +663,26 @@ export default function EmergencyCharging() {
                       value="cod"
                       checked={paymentType === 'cod'}
                       onChange={() => setPaymentType('cod')}
+                      style={{ accentColor: '#ef4444' }}
                     />
-                    <span style={{ fontSize: '0.85rem' }}>Cash on Delivery</span>
+                    <span style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 500 }}>Cash on Delivery</span>
                   </label>
                 </div>
               </div>
 
               {/* Total Card */}
               <div style={{
-                background: 'rgba(255,42,95,0.03)',
+                background: '#fff5f5',
                 padding: '20px',
                 borderRadius: '12px',
-                border: '1px solid rgba(255, 42, 95, 0.25)',
+                border: '1px solid #fca5a5',
                 marginBottom: '20px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-secondary)' }}>Total Urgent Payable</span>
-                <span className="gradient-text-red" style={{ fontSize: '1.8rem', fontWeight: 800 }}>
+                <span style={{ fontWeight: 600, fontSize: '1rem', color: '#475569' }}>Total Urgent Payable</span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#ef4444' }}>
                   ₹{totalAmount.toFixed(2)}
                 </span>
               </div>
@@ -695,13 +692,22 @@ export default function EmergencyCharging() {
                 onClick={handleBooking}
                 disabled={!locationShared || loading}
                 className="glass-button emergency"
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                style={{ 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '8px',
+                  background: '#ef4444',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)',
+                  color: '#ffffff'
+                }}
               >
                 {loading ? 'Dispatching SOS...' : 'Request Immediate SOS Response'}
               </button>
               
               {!locationShared && (
-                <span style={{ display: 'block', textAlign: 'center', fontSize: '0.75rem', color: 'var(--accent-red)', marginTop: '8px' }}>
+                <span style={{ display: 'block', textAlign: 'center', fontSize: '0.75rem', color: '#ef4444', marginTop: '8px' }}>
                   * Please broadcast your SOS location coordinates to dispatch help
                 </span>
               )}
@@ -894,6 +900,6 @@ export default function EmergencyCharging() {
           </div>
         </div>
       )}
-    </div>
+    </Layout>
   );
 }

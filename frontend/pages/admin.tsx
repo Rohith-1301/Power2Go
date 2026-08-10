@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { ArrowLeft, Users, Calendar, ShoppingBag, Star, Download, ShieldAlert, Lock, Truck } from 'lucide-react';
+import Layout from '../components/Layout';
 
 interface Metrics {
   totalUsers: number;
@@ -25,7 +26,20 @@ export default function AdminDashboard() {
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'bookings' | 'feedback' | 'drivers'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'bookings' | 'feedback' | 'drivers' | 'services' | 'repairs'>('users');
+
+  // EV services & Roadside repairs admin states
+  const [services, setServices] = useState<any[]>([]);
+  const [repairs, setRepairs] = useState<any[]>([]);
+  const [mechanics, setMechanics] = useState<any[]>([]);
+  const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
+  const [editingServicePrice, setEditingServicePrice] = useState<string>('');
+  const [selectedRepair, setSelectedRepair] = useState<any | null>(null);
+  const [showEstimateForm, setShowEstimateForm] = useState(false);
+  const [estLabor, setEstLabor] = useState('0');
+  const [estParts, setEstParts] = useState('0');
+  const [estDiagnostics, setEstDiagnostics] = useState('0');
+  const [estOther, setEstOther] = useState('0');
 
   useEffect(() => {
     // Check if the user is already authenticated as admin in localStorage
@@ -73,11 +87,40 @@ export default function AdminDashboard() {
       setBookings(data.bookings);
       setFeedbacks(data.feedbacks);
       setDrivers(data.drivers || []);
+
+      // Fetch new services and repair entities
+      await fetchServices();
+      await fetchRepairs();
     } catch (err) {
       console.error(err);
       setAuthError('Connection error fetching metrics.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchServices = async () => {
+    try {
+      const res = await fetch('/api/services');
+      if (res.ok) {
+        const data = await res.json();
+        setServices(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchRepairs = async () => {
+    try {
+      const res = await fetch('/api/admin/repairs/list');
+      if (res.ok) {
+        const data = await res.json();
+        setRepairs(data.repairs);
+        setMechanics(data.mechanics);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -96,6 +139,80 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleUpdateService = async (id: number, isAvailable: boolean, price: number) => {
+    try {
+      const res = await fetch('/api/admin/services/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isAvailable, price })
+      });
+      if (res.ok) {
+        alert('Service updated successfully');
+        setEditingServiceId(null);
+        await fetchServices();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAssignMechanic = async (repairId: number, mechanicId: string) => {
+    try {
+      const res = await fetch(`/api/repairs/${repairId}/mechanic/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mechanicId, accept: true })
+      });
+      if (res.ok) {
+        alert('Mechanic assigned and dispatched successfully');
+        await fetchRepairs();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateRepairStatus = async (repairId: number, status: string) => {
+    try {
+      const res = await fetch(`/api/repairs/${repairId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        alert(`Status updated to ${status}`);
+        await fetchRepairs();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSubmitEstimate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRepair) return;
+    try {
+      const res = await fetch(`/api/repairs/${selectedRepair.id}/estimate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          labor: parseFloat(estLabor),
+          parts: parseFloat(estParts),
+          diagnostics: parseFloat(estDiagnostics),
+          other: parseFloat(estOther)
+        })
+      });
+      if (res.ok) {
+        alert('Repair estimate submitted to customer successfully!');
+        setShowEstimateForm(false);
+        setSelectedRepair(null);
+        await fetchRepairs();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleExportExcel = () => {
     // Trigger download from API endpoint
     window.open(`/api/admin/export?password=1208006`, '_blank');
@@ -108,27 +225,28 @@ export default function AdminDashboard() {
           <title>Power2Go - Admin Portal Sign In</title>
         </Head>
 
-        <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '40px' }}>
+        <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '40px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)' }}>
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <ShieldAlert style={{ color: 'var(--accent-orange)', width: '32px', height: '32px' }} />
-              <h2 className="gradient-text" style={{ fontSize: '1.75rem', fontWeight: 800 }}>Admin Login</h2>
+              <ShieldAlert style={{ color: '#b45309', width: '32px', height: '32px' }} />
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#b45309' }}>Admin Login</h2>
             </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            <p style={{ color: '#475569', fontSize: '0.85rem' }}>
               Access restricted to Power2Go Managers.
             </p>
           </div>
 
           {authError && (
             <div style={{
-              background: 'rgba(255, 42, 95, 0.1)',
-              border: '1px solid var(--accent-red)',
-              color: 'white',
+              background: '#fff5f5',
+              border: '1px solid #fca5a5',
+              color: '#ef4444',
               padding: '12px',
               borderRadius: '6px',
               marginBottom: '20px',
               fontSize: '0.85rem',
-              textAlign: 'center'
+              textAlign: 'center',
+              fontWeight: 600
             }}>
               {authError}
             </div>
@@ -136,7 +254,7 @@ export default function AdminDashboard() {
 
           <form onSubmit={handleAdminAuth} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
                 Admin Username
               </label>
               <input
@@ -144,20 +262,20 @@ export default function AdminDashboard() {
                 className="glass-input"
                 value="Power2Go"
                 disabled
-                style={{ cursor: 'not-allowed', opacity: 0.7 }}
+                style={{ cursor: 'not-allowed', opacity: 0.7, background: '#f8fafc', borderColor: '#e2e8f0', color: '#64748b' }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: '#475569', fontWeight: 600 }}>
                 Manager Security Code
               </label>
               <div style={{ position: 'relative' }}>
-                <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', width: '18px' }} />
+                <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', width: '18px' }} />
                 <input
                   type="password"
                   className="glass-input"
-                  style={{ paddingLeft: '40px' }}
+                  style={{ paddingLeft: '40px', background: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' }}
                   placeholder="••••••••"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
@@ -167,11 +285,11 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <button type="submit" className="glass-button" style={{ marginTop: '10px', background: 'linear-gradient(135deg, var(--accent-orange) 0%, #d47a00 100%)', boxShadow: '0 4px 15px rgba(255, 159, 0, 0.2)' }}>
+            <button type="submit" className="glass-button" style={{ marginTop: '10px', background: '#b45309', border: 'none', color: '#fff', fontWeight: 700, boxShadow: '0 4px 12px rgba(180, 83, 9, 0.15)' }}>
               Authorize Dashboard
             </button>
             
-            <button type="button" onClick={() => router.push('/')} className="glass-button secondary" style={{ padding: '10px' }}>
+            <button type="button" onClick={() => router.push('/')} className="glass-button secondary" style={{ padding: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#475569' }}>
               Return to Website
             </button>
           </form>
@@ -181,43 +299,9 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Head>
-        <title>Power2Go - Admin Manager Dashboard</title>
-      </Head>
-
-      {/* Header Bar */}
-      <header className="glass-panel" style={{
-        margin: '20px',
-        padding: '15px 30px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderRadius: '16px',
-        borderColor: 'rgba(255, 159, 0, 0.4)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <button
-            onClick={() => router.push('/dashboard')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            <ArrowLeft style={{ width: '20px' }} />
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShieldAlert style={{ color: 'var(--accent-orange)', width: '24px' }} />
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-orange)' }}>
-              Power2Go Manager Dashboard
-            </h1>
-          </div>
-        </div>
-
+    <Layout
+      activeTab="Admin Control Panel"
+      headerAction={
         <button
           onClick={handleExportExcel}
           className="glass-button"
@@ -227,17 +311,25 @@ export default function AdminDashboard() {
             gap: '8px',
             fontSize: '0.85rem',
             padding: '10px 18px',
-            background: 'linear-gradient(135deg, var(--accent-green) 0%, #009944 100%)',
-            boxShadow: '0 4px 15px rgba(0, 255, 135, 0.2)'
+            background: '#00aa55',
+            border: 'none',
+            color: '#ffffff',
+            fontWeight: 700,
+            boxShadow: '0 2px 6px rgba(0, 170, 85, 0.15)',
+            cursor: 'pointer'
           }}
         >
           <Download style={{ width: '16px' }} />
           Export Report to Excel
         </button>
-      </header>
+      }
+    >
+      <Head>
+        <title>Power2Go - Admin Manager Dashboard</title>
+      </Head>
 
       {/* Main Container */}
-      <main className="container" style={{ flex: 1, paddingTop: '10px' }}>
+      <main className="container" style={{ flex: 1, padding: '20px 0' }}>
         
         {/* KPI Metrics Cards */}
         <div style={{
@@ -292,8 +384,8 @@ export default function AdminDashboard() {
         </div>
 
         {/* Tab Selection */}
-        <div className="glass-panel" style={{ padding: '10px', display: 'flex', gap: '10px', marginBottom: '20px', borderRadius: '12px' }}>
-          {(['users', 'bookings', 'feedback', 'drivers'] as const).map((tab) => (
+        <div className="glass-panel" style={{ padding: '10px', display: 'flex', gap: '10px', marginBottom: '20px', borderRadius: '12px', flexWrap: 'wrap' }}>
+          {(['users', 'bookings', 'feedback', 'drivers', 'services', 'repairs'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -310,7 +402,7 @@ export default function AdminDashboard() {
                 borderRadius: '8px'
               }}
             >
-              {tab === 'users' ? 'Registered Customers' : tab === 'bookings' ? 'Bookings Queue' : tab === 'feedback' ? 'Feedbacks & Queries' : 'Driver Partners'}
+              {tab === 'users' ? 'Registered Customers' : tab === 'bookings' ? 'Bookings Queue' : tab === 'feedback' ? 'Feedbacks & Queries' : tab === 'drivers' ? 'Worker Partners' : tab === 'services' ? 'EV Station Services' : 'Roadside Assistance'}
             </button>
           ))}
         </div>
@@ -439,10 +531,269 @@ export default function AdminDashboard() {
                 )}
               </tbody>
             </table>
+          ) : activeTab === 'services' ? (
+            /* EV Station Services Table */
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>EV Station Services Manager</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Seeded: {services.length} services • Total services revenue: ₹{bookings.reduce((sum, b) => sum + (b.service_type === 'Station Pre-booking' ? (b.total_amount - 50) : 0), 0).toFixed(2)}
+                </span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <th style={{ padding: '12px' }}>Service Name</th>
+                    <th style={{ padding: '12px' }}>Service Key</th>
+                    <th style={{ padding: '12px' }}>Price</th>
+                    <th style={{ padding: '12px' }}>Est. Duration</th>
+                    <th style={{ padding: '12px' }}>Availability Status</th>
+                    <th style={{ padding: '12px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody style={{ fontSize: '0.9rem' }}>
+                  {services.map((s, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                      <td style={{ padding: '14px 12px', fontWeight: 600 }}>{s.service_name}</td>
+                      <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{s.service_key}</td>
+                      <td style={{ padding: '14px 12px' }}>
+                        {editingServiceId === s.id ? (
+                          <input
+                            type="number"
+                            value={editingServicePrice}
+                            onChange={(e) => setEditingServicePrice(e.target.value)}
+                            style={{ width: '80px', padding: '4px', background: '#000', border: '1px solid var(--border-glass)', color: '#fff' }}
+                          />
+                        ) : (
+                          <span>₹{s.price.toFixed(2)}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '14px 12px' }}>{s.duration_mins > 0 ? `${s.duration_mins} mins` : 'N/A'}</td>
+                      <td style={{ padding: '14px 12px' }}>
+                        <span style={{
+                          background: s.is_available ? 'rgba(0, 200, 87, 0.1)' : 'rgba(255, 42, 95, 0.1)',
+                          color: s.is_available ? 'var(--accent-green)' : 'var(--accent-red)',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold'
+                        }}>
+                          {s.is_available ? 'Available' : 'Unavailable'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 12px', display: 'flex', gap: '10px' }}>
+                        {editingServiceId === s.id ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateService(s.id, Boolean(s.is_available), parseFloat(editingServicePrice))}
+                              className="glass-button"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-green)', color: 'var(--accent-green)' }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingServiceId(null)}
+                              className="glass-button secondary"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingServiceId(s.id);
+                                setEditingServicePrice(s.price.toString());
+                              }}
+                              className="glass-button"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            >
+                              Edit Price
+                            </button>
+                            <button
+                              onClick={() => handleUpdateService(s.id, !s.is_available, s.price)}
+                              className="glass-button secondary"
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '0.75rem',
+                                color: s.is_available ? 'var(--accent-red)' : 'var(--accent-green)',
+                                borderColor: s.is_available ? 'var(--accent-red)' : 'var(--accent-green)'
+                              }}
+                            >
+                              {s.is_available ? 'Disable' : 'Enable'}
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : activeTab === 'repairs' ? (
+            /* Roadside Repairs Manager Dashboard */
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>EV Roadside Assistance queue</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Total incidents: {repairs.length} • Pending: {repairs.filter(r => r.status === 'pending').length}
+                </span>
+              </div>
+
+              {showEstimateForm && selectedRepair && (
+                /* Diagnostic Estimate submit Form */
+                <form onSubmit={handleSubmitEstimate} className="glass-panel" style={{ padding: '20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--accent-orange)' }}>
+                  <h4 style={{ color: 'var(--accent-orange)', fontSize: '0.95rem', margin: '0 0 6px 0' }}>Submit Diagnostics & Repair Invoice: #{selectedRepair.id}</h4>
+                  
+                  <div className="admin-modal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Labor (₹)</label>
+                      <input type="number" value={estLabor} onChange={e => setEstLabor(e.target.value)} className="glass-input" style={{ padding: '8px' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Spare Parts (₹)</label>
+                      <input type="number" value={estParts} onChange={e => setEstParts(e.target.value)} className="glass-input" style={{ padding: '8px' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Diagnostics (₹)</label>
+                      <input type="number" value={estDiagnostics} onChange={e => setEstDiagnostics(e.target.value)} className="glass-input" style={{ padding: '8px' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Other Fees (₹)</label>
+                      <input type="number" value={estOther} onChange={e => setEstOther(e.target.value)} className="glass-input" style={{ padding: '8px' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button type="button" onClick={() => { setShowEstimateForm(false); setSelectedRepair(null); }} className="glass-button secondary" style={{ padding: '8px 16px' }}>Cancel</button>
+                    <button type="submit" className="glass-button" style={{ padding: '8px 24px', background: 'var(--accent-orange)', border: 'none', color: '#000', fontWeight: 'bold' }}>Submit Estimate</button>
+                  </div>
+                </form>
+              )}
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    <th style={{ padding: '12px' }}>ID</th>
+                    <th style={{ padding: '12px' }}>Customer</th>
+                    <th style={{ padding: '12px' }}>Vehicle Plate</th>
+                    <th style={{ padding: '12px' }}>AI Diagnosis Assessment</th>
+                    <th style={{ padding: '12px' }}>Status</th>
+                    <th style={{ padding: '12px' }}>Towing Recovery</th>
+                    <th style={{ padding: '12px' }}>Assigned Tech</th>
+                    <th style={{ padding: '12px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody style={{ fontSize: '0.9rem' }}>
+                  {repairs.length === 0 ? (
+                    <tr><td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No roadside incidents found.</td></tr>
+                  ) : (
+                    repairs.map((r, idx) => {
+                      const aiResult = r.ai_diagnosis_result ? JSON.parse(r.ai_diagnosis_result) : null;
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <td style={{ padding: '14px 12px', color: 'var(--text-muted)' }}>#{r.id}</td>
+                          <td style={{ padding: '14px 12px', fontWeight: 600 }}>{r.user_name}</td>
+                          <td style={{ padding: '14px 12px' }}>
+                            <div>{r.vehicle_number}</div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{r.vehicle_type}</span>
+                          </td>
+                          <td style={{ padding: '14px 12px', maxWidth: '250px' }}>
+                            {aiResult ? (
+                              <div>
+                                <strong style={{ fontSize: '0.78rem', color: aiResult.severity === 'Critical' ? 'var(--accent-red)' : 'var(--accent-orange)' }}>
+                                  [{aiResult.severity}] {aiResult.diagnosis}
+                                </strong>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  Causes: {aiResult.causes.join(', ')}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>No diagnosis ran</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 12px' }}>
+                            <span style={{
+                              background: r.status === 'completed' ? 'rgba(0, 200, 87, 0.1)' : r.status === 'pending' ? 'rgba(255, 42, 95, 0.1)' : 'rgba(255, 159, 0, 0.15)',
+                              color: r.status === 'completed' ? 'var(--accent-green)' : r.status === 'pending' ? 'var(--accent-red)' : 'var(--accent-orange)',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              textTransform: 'capitalize'
+                            }}>{r.status.replace(/_/g, ' ')}</span>
+                          </td>
+                          <td style={{ padding: '14px 12px' }}>
+                            {r.recovery_vehicle_assigned === 1 ? (
+                              <div>
+                                <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>Flatbed Dispatched</span>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>To station: {r.station_name}</div>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>None</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 12px' }}>{r.mechanic_id || <span style={{ color: 'var(--text-muted)' }}>Unassigned</span>}</td>
+                          <td style={{ padding: '14px 12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {r.status === 'pending' && (
+                                <button
+                                  onClick={() => handleAssignMechanic(r.id, 'mech_1')}
+                                  className="glass-button"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                >
+                                  Dispatch রমেশ (Ramesh)
+                                </button>
+                              )}
+                              {r.status === 'accepted' && (
+                                <button
+                                  onClick={() => handleUpdateRepairStatus(r.id, 'arrived')}
+                                  className="glass-button"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-green)', color: 'var(--accent-green)' }}
+                                >
+                                  Mark Arrived
+                                </button>
+                              )}
+                              {(r.status === 'arrived' || r.status === 'station_assigned' || r.status === 'recovery_required') && r.estimate_status === 'none' && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedRepair(r);
+                                    setEstLabor('300');
+                                    setEstParts('1200');
+                                    setEstDiagnostics('499');
+                                    setEstOther('100');
+                                    setShowEstimateForm(true);
+                                  }}
+                                  className="glass-button"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-orange)', color: 'var(--accent-orange)' }}
+                                >
+                                  Provide Estimate
+                                </button>
+                              )}
+                              {r.status === 'repair_in_progress' && (
+                                <button
+                                  onClick={() => handleUpdateRepairStatus(r.id, 'completed')}
+                                  className="glass-button"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-green)', color: 'var(--accent-green)' }}
+                                >
+                                  Mark Completed
+                                </button>
+                              )}
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Payment: {r.payment_status}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           ) : (
             /* Drivers Panel */
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginBottom: '24px' }}>
+              <div className="admin-map-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', marginBottom: '24px' }}>
                 <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '20px' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 16px 0', color: 'var(--accent-orange)' }}>Fleet Coverage Map</h3>
                   <div style={{ height: '350px', borderRadius: '8px', overflow: 'hidden' }}>
@@ -483,8 +834,9 @@ export default function AdminDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                    <th style={{ padding: '12px' }}>Driver</th>
-                    <th style={{ padding: '12px' }}>Driver ID</th>
+                    <th style={{ padding: '12px' }}>Worker</th>
+                    <th style={{ padding: '12px' }}>Worker ID</th>
+                    <th style={{ padding: '12px' }}>Role</th>
                     <th style={{ padding: '12px' }}>Mobile / Email</th>
                     <th style={{ padding: '12px' }}>Aadhaar / License</th>
                     <th style={{ padding: '12px' }}>Vehicle Plate</th>
@@ -496,7 +848,7 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody style={{ fontSize: '0.9rem' }}>
                   {drivers.length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No drivers registered.</td></tr>
+                    <tr><td colSpan={10} style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No workers registered.</td></tr>
                   ) : (
                     drivers.map((d, i) => {
                       const isApproved = Boolean(Number(d.is_approved) === 1 || d.is_approved === true || d.is_approved === 'true');
@@ -507,6 +859,17 @@ export default function AdminDashboard() {
                             <span style={{ fontWeight: 600 }}>{d.name}</span>
                           </td>
                           <td style={{ padding: '14px 12px', color: 'var(--text-secondary)' }}>{d.driver_id}</td>
+                          <td style={{ padding: '14px 12px' }}>
+                            <span style={{
+                              background: d.role === 'mechanic' ? 'rgba(255, 159, 0, 0.1)' : 'rgba(0, 136, 255, 0.1)',
+                              color: d.role === 'mechanic' ? 'var(--accent-orange)' : 'var(--accent-blue)',
+                              padding: '2px 8px',
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              textTransform: 'capitalize'
+                            }}>{d.role || 'driver'}</span>
+                          </td>
                           <td style={{ padding: '14px 12px', fontSize: '0.8rem' }}>
                             <div>{d.mobile}</div>
                             <div style={{ color: 'var(--text-secondary)' }}>{d.email}</div>
@@ -537,16 +900,32 @@ export default function AdminDashboard() {
                             {isApproved ? (
                               <button
                                 onClick={() => handleApproveDriver(d.driver_id, false)}
-                                className="glass-button secondary"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-red)', color: 'var(--accent-red)' }}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: '0.75rem',
+                                  background: '#fff5f5',
+                                  border: '1px solid #ef4444',
+                                  color: '#ef4444',
+                                  borderRadius: '6px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
                               >
                                 Suspend
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleApproveDriver(d.driver_id, true)}
-                                className="glass-button"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem', borderColor: 'var(--accent-green)', color: 'var(--accent-green)' }}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: '0.75rem',
+                                  background: '#eefdf4',
+                                  border: '1px solid #00aa55',
+                                  color: '#00aa55',
+                                  borderRadius: '6px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
                               >
                                 Approve
                               </button>
@@ -563,6 +942,6 @@ export default function AdminDashboard() {
         </div>
 
       </main>
-    </div>
+    </Layout>
   );
 }

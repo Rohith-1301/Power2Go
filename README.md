@@ -30,7 +30,7 @@ An **open-source LLM** is used for EV problem understanding, preliminary diagnos
 ### 🎥 Demo
 
 **Power2Go Demo Video:**
-https://drive.google.com/drive/project/1OPgR2WvOsHYetH3OEUSjx7UCCuWaHNjr?usp=sharing
+https://drive.google.com/file/d/1ek0S4b_YZCg3Ik6AKSDF9LifDXngP0P8/view?usp=sharing
 
 ### 🔮 Future Scope
 

@@ -35,6 +35,7 @@ export default function RoadsideRepair() {
   
   const [aiReport, setAiReport] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [diagnosisLanguage, setDiagnosisLanguage] = useState('en');
   const [repairOption, setRepairOption] = useState<'none' | 'mechanic' | 'take_to_station'>('none');
   const [activeRepair, setActiveRepair] = useState<any>(null);
   const [activeMechanic, setActiveMechanic] = useState<any>(null);
@@ -119,18 +120,32 @@ export default function RoadsideRepair() {
     }
     setAiLoading(true);
     try {
-      const res = await fetch('/api/repairs/diagnose', {
+      // Try multilingual endpoint first
+      const res = await fetch('/api/ai/diagnose-multilingual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: repairDescription,
           vehicleType: repairVehicleType,
-          vehicleNumber: repairVehicleNumber
+          vehicleNumber: repairVehicleNumber,
+          language: diagnosisLanguage
         })
       });
       if (res.ok) {
         const data = await res.json();
         setAiReport(data);
+      } else {
+        // Fallback to old endpoint
+        const fallbackRes = await fetch('/api/repairs/diagnose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: repairDescription,
+            vehicleType: repairVehicleType,
+            vehicleNumber: repairVehicleNumber
+          })
+        });
+        if (fallbackRes.ok) setAiReport(await fallbackRes.json());
       }
     } catch (err) {
       console.error(err);

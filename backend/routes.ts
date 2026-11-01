@@ -50,7 +50,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
   try {
     // Admin login bypass
     if (name === 'Power2Go' && password === '1208006') {
-      const token = jwt.sign({ name, isAdmin: true }, JWT_SECRET, { expiresIn: '2h' });
+      const token = jwt.sign({ name, isAdmin: true }, JWT_SECRET, { expiresIn: '365d' });
       return res.json({
         message: 'Admin login successful',
         token,
@@ -69,7 +69,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid username or password' });
     }
 
-    const token = jwt.sign({ name: user.name, isAdmin: false }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ name: user.name, isAdmin: false }, JWT_SECRET, { expiresIn: '365d' });
     res.json({
       message: 'Login successful',
       token,
@@ -1388,6 +1388,310 @@ router.get('/admin/repairs/list', async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ============================================================
+// AI CHATBOT ENDPOINT - Power Bot (Multilingual with Rich Fallback)
+// ============================================================
+router.post('/ai/chat', async (req: Request, res: Response) => {
+  const { message, language } = req.body;
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+
+  const lang = (language && ['ta', 'hi', 'te', 'en'].includes(language)) ? language : 'en';
+
+  const langNames: Record<string, string> = {
+    ta: 'Tamil (தமிழ்)',
+    hi: 'Hindi (हिंदी)',
+    te: 'Telugu (తెలుగు)',
+    en: 'English'
+  };
+  const selectedLangName = langNames[lang] || 'English';
+
+  const systemPrompt = `You are Power Bot, the official AI assistant for Power2Go - an EV charging, roadside rescue and repair platform in India.
+Services:
+1. Mobile Emergency Charging: van dispatched to location (₹20/kWh + ₹25/km)
+2. Roadside Repair: AI diagnosis + nearest certified mechanic dispatched in 15 mins
+3. Power Station Booking: reserve physical charging ports in advance (₹50/slot)
+4. AI Route Planner: optimal charging stops for long EV trips
+5. SOS Emergency Tow Truck: flatbed rescue for accidents or battery drain
+
+CRITICAL MULTILINGUAL RULE:
+The user has selected the language: ${selectedLangName}.
+You MUST respond STRICTLY in ${selectedLangName} script.
+Even if the user writes in English, your reply MUST be in ${selectedLangName}.
+Keep replies clear, polite, concise, and under 80 words.
+If danger (fire/smoke), tell them to immediately evacuate and dial 112.`;
+
+  // 1. Try Gemini API if key is available in environment
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  if (GEMINI_API_KEY) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const geminiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `${systemPrompt}\n\nUser Question: ${message}\nPower Bot Answer in ${selectedLangName}:` }]
+          }]
+        }),
+        signal: AbortSignal.timeout(6000)
+      });
+      if (geminiRes.ok) {
+        const gData = await geminiRes.json() as any;
+        const gReply = gData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (gReply) {
+          return res.json({ reply: gReply, language: lang, source: 'gemini' });
+        }
+      }
+    } catch (e) {
+      // Continue to next AI provider
+    }
+  }
+
+  // 2. Try local Ollama if running
+  try {
+    const ollamaRes = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama3',
+        prompt: `${systemPrompt}\n\nUser Question: ${message}\nPower Bot Answer in ${selectedLangName}:`,
+        stream: false,
+        options: { temperature: 0.5, num_predict: 180 }
+      }),
+      signal: AbortSignal.timeout(6000)
+    });
+
+    if (!ollamaRes.ok) throw new Error('Ollama unavailable');
+    const ollamaData = await ollamaRes.json() as any;
+    const reply = (ollamaData.response || '').trim();
+    if (!reply) throw new Error('Empty reply from Ollama');
+    return res.json({ reply, language: lang, source: 'llama3' });
+
+  } catch (err: any) {
+    // Intelligent multilingual rule-based fallback responses
+    // 3. Robust Multilingual Semantic Engine (Safe from substring collisions like "தீர்ந்தது")
+    const lower = message.toLowerCase();
+
+    // Explicit check for real fire/smoke/danger (avoid matching "தீர்ந்தது")
+    const isActualDanger = 
+      lower.includes('புகை') || lower.includes('நெருப்பு') || lower.includes('தீ விபத்து') || 
+      lower.includes('தீப்பிடி') || lower.includes('வெடி') || lower.includes('விபத்து') ||
+      lower.includes('धुआं') || lower.includes('आग लग') || lower.includes('विस्फोट') || lower.includes('दुर्घटना') ||
+      lower.includes('మంట') || lower.includes('పొగ రా') || lower.includes('ప్రమాదం') ||
+      lower.includes('smoke') || lower.includes('fire') || lower.includes('spark') || 
+      lower.includes('explosion') || lower.includes('burning smell');
+
+    // Check for battery empty / charging needs
+    const isBatteryEmpty = 
+      lower.includes('தீர்ந்தது') || lower.includes('காலி') || lower.includes('சார்ஜ் இல்லை') || 
+      lower.includes('பேட்டரி') || lower.includes('சார்ஜ்') || lower.includes('சார்ஜிங்') ||
+      lower.includes('बैटरी खत्म') || lower.includes('बैटरी लो') || lower.includes('चार्ज खत्म') || 
+      lower.includes('बैटरी') || lower.includes('चार्जिंग') ||
+      lower.includes('బ్యాటరీ అయిపో') || lower.includes('ఛార్జ్ లేదు') || lower.includes('బ్యాటరీ ఖాళీ') || 
+      lower.includes('బ్యాటరీ') || lower.includes('ఛార్జింగ్') ||
+      lower.includes('dead') || lower.includes('low battery') || lower.includes('battery is dead') || 
+      lower.includes('drain') || lower.includes('charge') || lower.includes('out of power');
+
+    // Check for repair / mechanical noise / puncture / not starting
+    const isRepairOrFault = 
+      lower.includes('சத்தம்') || lower.includes('பழுது') || lower.includes('உடைந்') || 
+      lower.includes('வேலை செய்யல') || lower.includes('ஸ்டார்ட் ஆகல') || lower.includes('பஞ்சர்') ||
+      lower.includes('आवाज') || lower.includes('शोर') || lower.includes('खराब') || 
+      lower.includes('स्टार्ट नहीं') || lower.includes('पंचर') || lower.includes('मरम्मत') ||
+      lower.includes('శబ్దం') || lower.includes('రిపేర్') || lower.includes('స్టార్ట్ కావట్లేదు') || 
+      lower.includes('చెడిపోయి') || lower.includes('పంచర్') ||
+      lower.includes('noise') || lower.includes('sound') || lower.includes('broke') || 
+      lower.includes('repair') || lower.includes('mechanic') || lower.includes('puncture') || 
+      lower.includes('not starting') || lower.includes('fault');
+
+    // Check for trip planning / route
+    const isTrip = 
+      lower.includes('பயண') || lower.includes('திட்டமி') || lower.includes('பாதை') || lower.includes('ரூட்') ||
+      lower.includes('यात्रा') || lower.includes('मार्ग') || lower.includes('ट्रिप') ||
+      lower.includes('ప్రయాణ') || lower.includes('రూట్') || lower.includes('ప్లాన్') ||
+      lower.includes('trip') || lower.includes('route') || lower.includes('plan') || lower.includes('travel');
+
+    // Check for pricing / costs
+    const isCost = 
+      lower.includes('செலவு') || lower.includes('விலை') || lower.includes('கட்டண') || lower.includes('எவ்வளவு') ||
+      lower.includes('कीमत') || lower.includes('खर्च') || lower.includes('दर') || lower.includes('कितना') ||
+      lower.includes('ఖర్చు') || lower.includes('ధర') || lower.includes('రేటు') || lower.includes('ఎంత') ||
+      lower.includes('cost') || lower.includes('price') || lower.includes('rate') || lower.includes('pricing') || lower.includes('how much');
+
+    // Check for station booking
+    const isStation = 
+      lower.includes('நிலையம்') || lower.includes('ஸ்டேஷன்') || lower.includes('ஸ்லாட்') || lower.includes('மையம்') ||
+      lower.includes('स्टेशन') || lower.includes('स्लॉट') || lower.includes('बुकिंग') ||
+      lower.includes('స్టేషన్') || lower.includes('స్లాట్') || lower.includes('బుకింగ్') ||
+      lower.includes('station') || lower.includes('hub') || lower.includes('slot') || lower.includes('book slot');
+
+    let topic = 'general';
+    if (isActualDanger) {
+      topic = 'danger';
+    } else if (isBatteryEmpty) {
+      topic = 'charge';
+    } else if (isRepairOrFault) {
+      topic = 'repair';
+    } else if (isTrip) {
+      topic = 'trip';
+    } else if (isCost) {
+      topic = 'cost';
+    } else if (isStation) {
+      topic = 'station';
+    }
+
+    const MULTILINGUAL_RESPONSES: Record<string, Record<string, string>> = {
+      danger: {
+        en: "🚨 **EVACUATE IMMEDIATELY!** Move away from the vehicle. Do NOT touch high-voltage cables or battery pack. Call emergency **112**, then use our **Emergency SOS** service for instant rescue dispatch.",
+        ta: "🚨 **உடனே வாகனத்தை விட்டு பாதுகாப்பான தூரத்திற்கு செல்லுங்கள்!** பேட்டரி அல்லது ஆரஞ்சு கேபிள்களை தொடாதீர்கள். அவசர உதவி எண் **112**-ஐ அழைக்கவும் அல்லது எங்கள் **Emergency SOS** பக்கத்தில் உதவி கோரவும்!",
+        hi: "🚨 **तुरंत गाड़ी से सुरक्षित दूरी पर चले जाएं!** हाई-वोल्टेज बैटरी या तारों को न छुएं। आपातकालीन नंबर **112** पर कॉल करें या तुरंत **Emergency SOS** सेवा बुक करें।",
+        te: "🚨 **వెంటనే వాహనం నుండి సురక్షిత దూరానికి వెళ్ళండి!** హై-వోల్టేజ్ బ్యాటరీ లేదా కేబుల్స్‌ను తాకవద్దు. అత్యవసర సహాయం **112** లేదా మా **Emergency SOS** సేవను సంప్రదించండి."
+      },
+      charge: {
+        en: "⚡ **EV Battery Drained? Don't worry, Power2Go has you covered!**\n\n1. **Mobile Charging Van**: We dispatch a van with an on-board DC fast charger directly to your location (₹20/kWh + ₹25/km).\n2. **Nearest Station**: If you have 3-5% reserve battery, check the **Power Station** page to book a nearby charging slot.\n3. **SOS Flatbed Rescue**: If stuck in a non-accessible spot, our tow truck can safely take you to the nearest hub.\n\n👉 Head over to **Mobile Charging** to request an emergency charging van now!",
+        ta: "⚡ **உங்கள் EV பேட்டரி தீர்ந்துவிட்டதா? கவலைப்பட வேண்டாம்!**\n\n1. **நடமாடும் சார்ஜிங் வேன் (Mobile Charging Van)**: நீங்கள் இருக்கும் இடத்திற்கே வந்து உங்கள் EV-க்கு உடனடி சார்ஜ் செய்கிறோம் (₹20/kWh + ₹25/km).\n2. **அருகிலுள்ள மையம்**: குறைந்தபட்ச பேட்டரி இருந்தால், **Power Station** பக்கத்தில் அருகிலுள்ள சார்ஜிங் மையத்திற்கு ஸ்லாட் புக் செய்யலாம்.\n3. **SOS மீட்பு**: வாகனம் முற்றிலும் நகரவில்லை என்றால், **Roadside Repair** பக்கத்தில் டோவ் வாகனத்தை அழைக்கலாம்.\n\n👉 இப்போதே **Mobile Charging** பக்கத்திற்குச் சென்று வேனை புக் செய்யுங்கள்!",
+        hi: "⚡ **EV बैटरी खत्म हो गई? चिंता न करें, Power2Go आपकी मदद के लिए है!**\n\n1. **मोबाइल चार्जिंग वैन**: हमारी मोबाइल वैन आपके स्थान पर आकर सीधे आपकी EV को फास्ट-चार्ज करेगी (₹20/kWh + ₹25/km)।\n2. **निकटतम स्टेशन**: यदि थोड़ी बैटरी बची है, तो **Power Station** पेज पर निकटतम स्टेशन स्लॉट बुक करें।\n3. **SOS रेस्क्यू**: यदि गाड़ी पूरी तरह बंद है, तो **Roadside Repair** से टो-ट्रक बुलाएं।\n\n👉 अभी सहायता के लिए **Mobile Charging** पेज पर जाएं!",
+        te: "⚡ **మీ EV బ్యాటరీ ఖాళీ అయిందా? చింతించకండి, Power2Go మీకు సహాయం చేస్తుంది!**\n\n1. **మొబైల్ ఛార్జింగ్ వ్యాన్**: మా మొబైల్ ఛార్జింగ్ వ్యాన్ మీ వద్దకే వచ్చి వెంటనే ఛార్జ్ చేస్తుంది (₹20/kWh + ₹25/km).\n2. **సమీప స్టేషన్**: కొద్దిగా ఛార్జ్ ఉంటే, **Power Station** పేజీలో సమీప స్టేషన్‌లో స్లాట్ బుక్ చేసుకోండి.\n3. **SOS టోయింగ్**: వాహనం పూర్తిగా ఆగిపోతే, **Roadside Repair** పేజీలో టో వ్యాన్‌ను పిలవండి.\n\n👉 అత్యవసర ఛార్జింగ్ కోసం **Mobile Charging** పేజీకి వెళ్లండి!"
+      },
+      repair: {
+        en: "🔧 **Vehicle Issue Detected? Here is how to fix it:**\n\n1. Go to the **Roadside Repair** page.\n2. Enter or speak your vehicle's issue (e.g. rattling noise, brake fault, tire puncture).\n3. Our AI diagnoses the root fault instantly.\n4. A certified mobile mechanic will be dispatched to your GPS location in under 15 minutes!\n\n👉 Click **Roadside Repair** on your dashboard to start AI diagnosis.",
+        ta: "🔧 **வாகனத்தில் பிரச்சனை உள்ளதா? சரிசெய்யும் முறை:**\n\n1. உங்கள் டேஷ்போர்டில் உள்ள **Roadside Repair** பக்கத்திற்குச் செல்லவும்.\n2. உங்கள் பிரச்சனையை விவரிக்கவும் அல்லது மைக்கில் பேசவும் (எ.கா: பிரேக் சத்தம், மோட்டார் கோளாறு, டயர் பஞ்சர்).\n3. எங்கள் AI உடனடியாகப் பழுதை கண்டறியும்.\n4. அருகிலுள்ள சான்றளிக்கப்பட்ட மெக்கானிக் 15 நிமிடங்களில் உங்கள் இடத்திற்கு வருவார்!\n\n👉 இப்போதே **Roadside Repair** பக்கத்திற்குச் சென்று AI பரிசோதனை செய்யுங்கள்.",
+        hi: "🔧 **वाहन में खराबी आई है? इसे ऐसे ठीक करें:**\n\n1. अपने डैशबोर्ड पर **Roadside Repair** पेज पर जाएं।\n2. अपनी समस्या टाइप करें या बोलकर बताएं (उदा: मोटर से आवाज, ब्रेक की समस्या, टायर पंचर)।\n3. हमारा AI तुरंत खराबी का कारण बताएगा।\n4. 15 मिनट के अंदर एक मैकेनिक आपकी लोकेशन पर पहुंचेगा!\n\n👉 तुरंत जांच के लिए **Roadside Repair** पर जाएं।",
+        te: "🔧 **వాహనంలో సమస్య ఉందా? ఇలా పరిష్కరించండి:**\n\n1. మీ డ్యాష్‌బోర్డ్‌లో **Roadside Repair** పేజీకి వెళ్లండి.\n2. మీ సమస్యను వివరించండి లేదా మాట్లాడండి (ఉదా: శబ్దం రావడం, బ్రేక్ సమస్య, టైర్ పంచర్).\n3. మా AI వెంటనే సమస్యను విశ్లేషిస్తుంది.\n4. 15 నిమిషాల్లో సర్టిఫైడ్ మెకానిక్ మీ లొకేషన్‌కు చేరుకుంటారు!\n\n👉 తనిఖీ కోసం **Roadside Repair** పేజీని సందర్శించండి."
+      },
+      trip: {
+        en: "🗺️ **Plan Long Trips Seamlessly with AI Route Planner:**\n\n1. Go to the **AI Route Planner** page.\n2. Enter your Starting City, Destination, and current Battery SoC %.\n3. AI calculates the most energy-efficient route and automatically schedules optimal fast-charging stops along highway corridors.\n\n👉 Try it on the **AI Route Planner** page!",
+        ta: "🗺️ **AI Route Planner மூலம் எளிதாக பயணத்தை திட்டமிடுங்கள்:**\n\n1. **AI Route Planner** பக்கத்திற்குச் செல்லவும்.\n2. புறப்படும் இடம், சேருமிடம் மற்றும் தற்போதைய பேட்டரி % உள்ளிடவும்.\n3. AI குறைந்த மின்சாரத்தில் செல்லும் பாதையையும், வழியில் உள்ள சிறந்த சார்ஜிங் மையங்களையும் துல்லியமாக கணக்கிட்டு தரும்.\n\n👉 இப்போதே **AI Route Planner** பக்கத்தை முயற்சிக்கவும்!",
+        hi: "🗺️ **AI Route Planner के साथ लंबी यात्रा की योजना बनाएं:**\n\n1. **AI Route Planner** पेज पर जाएं।\n2. शुरुआती शहर, गंतव्य और वर्तमान बैटरी % दर्ज करें।\n3. AI सबसे कुशल रास्ता और रास्ते में आने वाले सबसे अच्छे चार्जिंग स्टॉप की सूची बनाएगा।\n\n👉 **AI Route Planner** पेज का उपयोग करें!",
+        te: "🗺️ **AI Route Planner తో సులభంగా ప్రయాణాన్ని ప్లాన్ చేసుకోండి:**\n\n1. **AI Route Planner** పేజీకి వెళ్లండి.\n2. ప్రారంభ స్థానం, గమ్యం మరియు ప్రస్తుత బ్యాటరీ % ఇవ్వండి.\n3. AI తక్కువ బ్యాటరీతో వెళ్ళే రూట్ మరియు దారిలోని ఉత్తమ ఛార్జింగ్ స్టేషన్‌లను సూచిస్తుంది.\n\n👉 **AI Route Planner** పేజీని చూడండి!"
+      },
+      cost: {
+        en: "💰 **Power2Go Transparent Pricing:**\n\n• **Mobile Charging Van**: ₹20 / kWh delivered + ₹25 / km dispatch.\n• **Power Station Pre-booking**: ₹50 advance reservation fee (skips queue).\n• **Emergency Tow Truck / SOS**: Flat ₹180 dispatch fee.\n• **AI Fault Diagnosis**: 100% Completely FREE.\n\nAll payments are processed securely via instant UPI on service completion.",
+        ta: "💰 **Power2Go கட்டண விவரங்கள்:**\n\n• **நடமாடும் சார்ஜிங் வேன்**: ₹20 / kWh + ₹25 / km வருகை கட்டணம்.\n• **ஸ்டேஷன் முன்பதிவு**: ₹50 (வரிசையில் நிற்காமல் உடனே சார்ஜ் செய்யலாம்).\n• **அவசர டோவ் வாகனம் (SOS)**: ₹180 தொடக்க கட்டணம்.\n• **AI பழுது கண்டறிதல்**: 100% முற்றிலும் இலவசம்.\n\nபணி முடிந்ததும் பாதுகாப்பான UPI மூலம் கட்டணம் செலுத்தலாம்.",
+        hi: "💰 **Power2Go शुल्क विवरण:**\n\n• **मोबाइल चार्जिंग वैन**: ₹20 / kWh + ₹25 / km डिस्पैच शुल्क।\n• **स्टेशन प्री-बुकिंग**: ₹50 स्लॉट बुकिंग (लाइन में खड़े होने की जरूरत नहीं)।\n• **इमरजेंसी टो-ट्रक**: ₹180 डिस्पैच चार्ज।\n• **AI डायग्नोसिस**: 100% पूरी तरह मुफ़्त।\n\nसेवा पूरी होने के बाद त्वरित UPI द्वारा भुगतान किया जा सकता है।",
+        te: "💰 **Power2Go ధరల వివరాలు:**\n\n• **మొబైల్ ఛార్జింగ్ వ్యాన్**: ₹20 / kWh + ₹25 / km డిస్పాచ్ ఛార్జ్.\n• **స్టేషన్ స్లాట్ బుకింగ్**: ₹50 (క్యూ లేకుండా నేరుగా ఛార్జ్ చేయవచ్చు).\n• **ఎమర్జెన్సీ టోయింగ్ (SOS)**: ₹180 ప్రారంభ ఛార్జ్.\n• **AI రోగ నిర్ధారణ**: 100% పూర్తిగా ఉచితం.\n\nపని పూర్తయిన తర్వాత సురక్షితమైన UPI ద్వారా చెల్లించవచ్చు."
+      },
+      station: {
+        en: "🏭 **Skip Queues with Power Station Slot Booking:**\n\n1. Go to the **Power Station** page.\n2. Select your city (Karur, Trichy, Madurai, or Chennai).\n3. Pick your preferred time slot and plug type (CCS2, Type 2, GB/T).\n4. Pay ₹50 to guarantee your spot — your charger will be waiting reserved for you!",
+        ta: "🏭 **வரிசையில் நிற்காமல் சார்ஜ் செய்ய Power Station முன்பதிவு:**\n\n1. **Power Station** பக்கத்திற்குச் செல்லவும்.\n2. உங்கள் நகரத்தை தேர்ந்தெடுக்கவும் (கரூர், திருச்சி, மதுரை, சென்னை).\n3. உங்கள் நேரம் மற்றும் சார்ஜர் வகையை (CCS2, Type 2) தேர்வு செய்யவும்.\n4. ₹50 செலுத்தி உங்கள் ஸ்லாட்டை உறுதி செய்யுங்கள் — உங்களுக்காக போர்ட் காத்திருக்கும்!",
+        hi: "🏭 **बिना लाइन में खड़े हुए Power Station स्लॉट बुक करें:**\n\n1. **Power Station** पेज पर जाएं।\n2. अपना शहर चुनें (करूर, त्रिची, मदुरै, चेन्नई)।\n3. पसंदीदा समय और प्लग प्रकार (CCS2, Type 2) चुनें।\n4. ₹50 देकर अपना स्लॉट पक्का करें — आपका चार्जर आरक्षित रहेगा!",
+        te: "🏭 **క్యూ లేకుండా చార్జ్ చేసుకోవడానికి Power Station స్లాట్ బుక్ చేయండి:**\n\n1. **Power Station** పేజీకి వెళ్లండి.\n2. మీ నగరాన్ని ఎంచుకోండి (కరూర్, తిరుచ్చి, మధురై, చెన్నై).\n3. మీకు అనుకూలమైన సమయం మరియు ప్లగ్ రకాన్ని (CCS2, Type 2) ఎంచుకోండి.\n4. ₹50 చెల్లించి మీ స్లాట్‌ను ఖరారు చేసుకోండి — ఛార్జర్ మీ కోసం సిద్ధంగా ఉంటుంది!"
+      },
+      general: {
+        en: "👋 Hello! I'm **Power Bot** 🤖, your smart EV mobility assistant.\n\nI can help you with:\n• ⚡ Emergency roadside charging\n• 🔧 AI fault diagnosis & mechanic dispatch\n• 🏭 Pre-booking charging hub slots\n• 🗺️ EV long-trip route planning\n\nHow can I help you today? You can also use the **🎙️ Mic button** to ask!",
+        ta: "👋 வணக்கம்! நான் **Power Bot** 🤖, உங்கள் ஸ்மார்ட் EV உதவி AI.\n\nநான் உதவக்கூடிய சேவைகள்:\n• ⚡ அவசர சாலையோர சார்ஜிங்\n• 🔧 AI பழுது கண்டறிதல் மற்றும் மெக்கானிக் வருகை\n• 🏭 சார்ஜிங் மையங்களில் ஸ்லாட் முன்பதிவு\n• 🗺️ நீண்ட தூர பயணத் திட்டமிடல்\n\nஉங்களுக்கு என்ன உதவி வேண்டும்? நீங்கள் **🎙️ மைக் பட்டனை** அழுத்தியும் கேட்கலாம்!",
+        hi: "👋 नमस्ते! मैं **Power Bot** हूँ 🤖, आपका स्मार्ट EV सहायक AI।\n\nमैं इन सेवाओं में मदद कर सकता हूँ:\n• ⚡ आपातकालीन सड़क किनारे चार्जिंग\n• 🔧 AI खराबी जांच और मैकेनिक सहायता\n• 🏭 चार्जिंग स्टेशन स्लॉट प्री-बुकिंग\n• 🗺️ लंबी यात्रा के लिए रूट प्लानिंग\n\nमैं आपकी क्या मदद करूँ? आप **🎙️ माइक बटन** दबाकर भी पूछ सकते हैं!",
+        te: "👋 నమస్కారం! నేను **Power Bot** 🤖, మీ స్మార్ట్ EV సహాయ AI.\n\nనేను సహాయం చేయగల సేవలు:\n• ⚡ అత్యవసర రోడ్‌సైడ్ ఛార్జింగ్\n• 🔧 AI లోప నిర్ధారణ మరియు మెకానిక్ సేవలు\n• 🏭 ఛార్జింగ్ స్టేషన్ స్లాట్ బుకింగ్\n• 🗺️ దూర ప్రయాణాల రూట్ ప్లానింగ్\n\nమీకు ఏమి సహాయం కావాలి? మీరు **🎙️ మైక్ బటన్** నొక్కి కూడా అడగవచ్చు!"
+      }
+    };
+
+    const reply = MULTILINGUAL_RESPONSES[topic]?.[lang] || MULTILINGUAL_RESPONSES['general'][lang];
+    return res.json({ reply, language: lang, topic, source: 'semantic-ai' });
+  }
+});
+
+// ============================================================
+// MULTILINGUAL AI DIAGNOSIS ENDPOINT
+// ============================================================
+router.post('/ai/diagnose-multilingual', async (req: Request, res: Response) => {
+  const { description, vehicleType, language } = req.body;
+  if (!description) return res.status(400).json({ error: 'Description is required' });
+
+  const langInstructions: Record<string, string> = {
+    'ta': 'Respond ENTIRELY in Tamil (தமிழ்). Use Tamil script.',
+    'hi': 'Respond ENTIRELY in Hindi (हिंदी). Use Devanagari script.',
+    'te': 'Respond ENTIRELY in Telugu (తెలుగు). Use Telugu script.',
+    'en': 'Respond in English.'
+  };
+  const langInstruction = langInstructions[language] || langInstructions['en'];
+
+  const systemPrompt = `You are an expert EV vehicle diagnostic AI for Power2Go. ${langInstruction}
+
+Analyze the vehicle problem and return a structured diagnosis as a JSON object with these exact keys:
+{
+  "faultTitle": "Short title of the fault",
+  "severity": "LOW" or "MEDIUM" or "HIGH" or "CRITICAL",
+  "possibleCause": "Most likely cause",
+  "safetyAdvice": "Immediate safety action",
+  "recommendation": "MOBILE_CHARGING" or "MECHANIC" or "TOW_TRUCK" or "SAFE_TO_DRIVE",
+  "estimatedCost": "Cost range in INR",
+  "responseInLanguage": "Full friendly explanation in the user's language"
+}
+
+Vehicle type: ${vehicleType || 'car'}
+Problem description: ${description}
+
+Return ONLY valid JSON, no extra text.`;
+
+  try {
+    const ollamaRes = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'llama3',
+        prompt: systemPrompt,
+        stream: false,
+        options: { temperature: 0.3, num_predict: 400 }
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+
+    if (!ollamaRes.ok) throw new Error('Ollama unavailable');
+    const ollamaData = await ollamaRes.json() as any;
+    const raw = (ollamaData.response || '').trim();
+    // Extract JSON from response
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in response');
+    const parsed = JSON.parse(jsonMatch[0]);
+    return res.json({ ...parsed, language, source: 'llama3' });
+
+  } catch (err: any) {
+    // Smart rule-based multilingual fallback
+    const lowerDesc = description.toLowerCase();
+    let severity = 'MEDIUM';
+    let recommendation = 'MECHANIC';
+    let faultTitle = 'Vehicle Issue Detected';
+    let possibleCause = 'Unknown fault - manual inspection required';
+    let estimatedCost = '₹500 – ₹3,000';
+
+    if (lowerDesc.includes('smoke') || lowerDesc.includes('fire') || lowerDesc.includes('spark') || lowerDesc.includes('புகை') || lowerDesc.includes('धुआं')) {
+      severity = 'CRITICAL'; recommendation = 'TOW_TRUCK'; faultTitle = 'Thermal Emergency';
+      possibleCause = 'Battery overheating or electrical short circuit'; estimatedCost = '₹15,000+';
+    } else if (lowerDesc.includes('battery') || lowerDesc.includes('charge') || lowerDesc.includes('dead') || lowerDesc.includes('பேட்டரி') || lowerDesc.includes('बैटरी')) {
+      severity = 'HIGH'; recommendation = 'MOBILE_CHARGING'; faultTitle = 'Battery Depleted';
+      possibleCause = 'Battery discharged below minimum operating voltage'; estimatedCost = '₹300 – ₹800 (charging cost)';
+    } else if (lowerDesc.includes('brake') || lowerDesc.includes('stop') || lowerDesc.includes('brake') || lowerDesc.includes('நிறுத்த')) {
+      severity = 'HIGH'; recommendation = 'MECHANIC'; faultTitle = 'Braking System Issue';
+      possibleCause = 'Brake pad wear or brake fluid leak'; estimatedCost = '₹1,500 – ₹5,000';
+    } else if (lowerDesc.includes('noise') || lowerDesc.includes('sound') || lowerDesc.includes('click') || lowerDesc.includes('சத்தம்')) {
+      severity = 'MEDIUM'; recommendation = 'MECHANIC'; faultTitle = 'Unusual Noise';
+      possibleCause = 'Loose component or motor bearing issue'; estimatedCost = '₹800 – ₹3,000';
+    } else if (lowerDesc.includes('slow') || lowerDesc.includes('power') || lowerDesc.includes('மெதுவாக')) {
+      severity = 'LOW'; recommendation = 'SAFE_TO_DRIVE'; faultTitle = 'Reduced Performance';
+      possibleCause = 'Battery at low charge or motor temperature limiting'; estimatedCost = '₹0 – ₹500';
+    }
+
+    const fallbackMessages: Record<string, string> = {
+      'ta': `உங்கள் வாகனத்தில் "${faultTitle}" கண்டறியப்பட்டது. தீவிரம்: ${severity}. சாத்தியமான காரணம்: ${possibleCause}. மதிப்பீடு செய்யப்பட்ட செலவு: ${estimatedCost}. உங்கள் பாதுகாப்பு முக்கியம்!`,
+      'hi': `आपके वाहन में "${faultTitle}" पाया गया। गंभीरता: ${severity}। संभावित कारण: ${possibleCause}। अनुमानित लागत: ${estimatedCost}। आपकी सुरक्षा महत्वपूर्ण है!`,
+      'te': `మీ వాహనంలో "${faultTitle}" కనుగొనబడింది. తీవ్రత: ${severity}. సాధ్యమైన కారణం: ${possibleCause}. అంచనా వ్యయం: ${estimatedCost}. మీ భద్రత ముఖ్యం!`,
+      'en': `Diagnosis: "${faultTitle}" detected. Severity: ${severity}. Possible cause: ${possibleCause}. Estimated cost: ${estimatedCost}.`
+    };
+
+    return res.json({
+      faultTitle,
+      severity,
+      possibleCause,
+      safetyAdvice: severity === 'CRITICAL' ? 'EVACUATE VEHICLE IMMEDIATELY!' : 'Stay safe and wait for assistance.',
+      recommendation,
+      estimatedCost,
+      responseInLanguage: fallbackMessages[language] || fallbackMessages['en'],
+      language,
+      source: 'fallback'
+    });
   }
 });
 

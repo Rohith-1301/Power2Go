@@ -24,6 +24,22 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/static', express.static(path.join(__dirname, 'public')));
 
 // API Routes
+app.get('/api/download-report', (req, res) => {
+  const pdfPath = "C:\\Users\\Rohith\\Desktop\\Power2Go_One_Page_Report.pdf";
+  if (fs.existsSync(pdfPath)) {
+    res.download(pdfPath, 'Power2Go_One_Page_Report.pdf');
+  } else {
+    res.status(404).json({ error: 'Report file not found on server' });
+  }
+});
+app.get('/api/download-deck', (req, res) => {
+  const pptxPath = "C:\\Users\\Rohith\\Desktop\\Power2Go_DEEPSprint_Pitch_Deck.pptx";
+  if (fs.existsSync(pptxPath)) {
+    res.download(pptxPath, 'Power2Go_DEEPSprint_Pitch_Deck.pptx');
+  } else {
+    res.status(404).json({ error: 'Deck file not found on server' });
+  }
+});
 app.use('/api', routes);
 
 // Serve Next.js Static Export in Production

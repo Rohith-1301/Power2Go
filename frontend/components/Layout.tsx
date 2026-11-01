@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { LogOut, ShieldAlert as AdminIcon } from 'lucide-react';
+import PowerBot from './PowerBot';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -144,6 +145,9 @@ export default function Layout({ children, activeTab, headerAction }: LayoutProp
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {children}
       </div>
+
+      {/* AI POWER BOT - Floating Chatbot on every page */}
+      <PowerBot />
 
     </div>
   );

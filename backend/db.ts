@@ -5,10 +5,11 @@ import fs from 'fs';
 
 // Check if PostgreSQL configuration is available
 const usePostgres = !!(
-  process.env.PGHOST &&
-  process.env.PGUSER &&
-  process.env.PGPASSWORD &&
-  process.env.PGDATABASE
+  process.env.DATABASE_URL ||
+  (process.env.PGHOST &&
+   process.env.PGUSER &&
+   process.env.PGPASSWORD &&
+   process.env.PGDATABASE)
 );
 
 let pgPool: Pool | null = null;
@@ -16,14 +17,21 @@ let sqliteDb: any = null;
 
 if (usePostgres) {
   console.log('Database Mode: PostgreSQL');
-  pgPool = new Pool({
-    host: process.env.PGHOST,
-    port: parseInt(process.env.PGPORT || '5432'),
-    user: process.env.PGUSER,
-    password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE,
-    ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined,
-  });
+  if (process.env.DATABASE_URL) {
+    pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+  } else {
+    pgPool = new Pool({
+      host: process.env.PGHOST,
+      port: parseInt(process.env.PGPORT || '5432'),
+      user: process.env.PGUSER,
+      password: process.env.PGPASSWORD,
+      database: process.env.PGDATABASE,
+      ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    });
+  }
 } else {
   console.log('Database Mode: SQLite (Local Fallback)');
   const dbDir = path.resolve(__dirname, '..', 'data');

@@ -483,6 +483,80 @@ export async function initDatabase() {
       console.error('Error seeding mechanics:', err);
     }
 
+    // Seeding default customer accounts
+    try {
+      const usersCount = await query('SELECT COUNT(*) as count FROM users');
+      const countVal = usersCount.rows[0]?.count || 0;
+      if (parseInt(countVal) === 0) {
+        console.log('Seeding saved customer profiles...');
+        await query(
+          'INSERT INTO users (name, vehicle_plate, password_hash, register_number) VALUES ($1, $2, $3, $4)',
+          ['Rohith', 'TN 47 XY 5678', '$2a$10$BOZYg8Lsl8D9NOoWn74vHesj7fDq4PWuNkMPMXmk6.vvYw5EVlrr6', 'REG-2024-EV01']
+        );
+        await query(
+          'INSERT INTO users (name, vehicle_plate, password_hash, register_number) VALUES ($1, $2, $3, $4)',
+          ['Rohan', 'TN 47 AB 1811', '$2a$10$.khfoXb69brjWyUh9DqN6.4bvq7sAycy8nUC6D8BAFITlRa4o888i', '8903381167']
+        );
+      }
+    } catch (err) {
+      console.error('Error seeding users:', err);
+    }
+
+    // Seeding default driver profiles
+    try {
+      const driversCount = await query('SELECT COUNT(*) as count FROM drivers');
+      const dCountVal = driversCount.rows[0]?.count || 0;
+      if (parseInt(dCountVal) === 0) {
+        console.log('Seeding saved driver profiles...');
+        await query(
+          `INSERT INTO drivers (driver_id, name, mobile, email, password_hash, aadhaar_number, license_number, vehicle_number, vehicle_type, emergency_contact, battery_capacity, status, is_approved, lat, lng, role)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          [
+            'drv_1',
+            'Suresh Kumar',
+            '9876543210',
+            'driver@power2go.com',
+            '$2a$10$BOZYg8Lsl8D9NOoWn74vHesj7fDq4PWuNkMPMXmk6.vvYw5EVlrr6',
+            '123456789012',
+            'TN47-DL-2020-001',
+            'TN 47 D 9988',
+            'Mobile Van',
+            '9876543211',
+            100.0,
+            'online',
+            1,
+            10.9602,
+            78.0766,
+            'driver'
+          ]
+        );
+        await query(
+          `INSERT INTO drivers (driver_id, name, mobile, email, password_hash, aadhaar_number, license_number, vehicle_number, vehicle_type, emergency_contact, battery_capacity, status, is_approved, lat, lng, role)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          [
+            'tow_1',
+            'Karthik Raja',
+            '9876543220',
+            'tow@power2go.com',
+            '$2a$10$BOZYg8Lsl8D9NOoWn74vHesj7fDq4PWuNkMPMXmk6.vvYw5EVlrr6',
+            '234567890123',
+            'TN45-DL-2019-002',
+            'TN 45 T 5544',
+            'Flatbed Tow Truck',
+            '9876543221',
+            100.0,
+            'online',
+            1,
+            10.9650,
+            78.0780,
+            'tow'
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Error seeding drivers:', err);
+    }
+
     console.log('Database tables successfully verified/created.');
   } catch (error) {
     console.error('Error initializing database:', error);

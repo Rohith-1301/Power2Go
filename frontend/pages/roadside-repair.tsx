@@ -547,7 +547,36 @@ export default function RoadsideRepair() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
-                    <label style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block', marginBottom: '8px', fontWeight: 700 }}>Describe the Problem</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '0.85rem', color: '#0f172a', fontWeight: 700, margin: 0 }}>Describe the Problem</label>
+                      <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '6px' }}>
+                        {[
+                          { code: 'en', label: 'English' },
+                          { code: 'ta', label: 'தமிழ்' },
+                          { code: 'hi', label: 'हिंदी' },
+                          { code: 'te', label: 'తెలుగు' }
+                        ].map(l => (
+                          <button
+                            key={l.code}
+                            type="button"
+                            onClick={() => setDiagnosisLanguage(l.code)}
+                            style={{
+                              border: 'none',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.72rem',
+                              fontWeight: diagnosisLanguage === l.code ? 700 : 500,
+                              background: diagnosisLanguage === l.code ? '#00aa55' : 'transparent',
+                              color: diagnosisLanguage === l.code ? '#ffffff' : '#64748b',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {l.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <textarea 
                       placeholder="Describe issue (e.g. battery warning light, flat tire, squeaking brakes)..." 
                       value={repairDescription} 
@@ -701,47 +730,71 @@ export default function RoadsideRepair() {
 
                 {/* Diagnosis Report & Action selector */}
                 {aiReport && (
-                  <div className="glass-panel" style={{ padding: '20px', borderColor: '#fca5a5', background: '#fff5f5', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+                  <div className="glass-panel" style={{ padding: '20px', borderColor: (aiReport.severity === 'Critical' || aiReport.severity === 'CRITICAL' || aiReport.recommendedAction === 'tow') ? '#fca5a5' : '#86efac', background: (aiReport.severity === 'Critical' || aiReport.severity === 'CRITICAL' || aiReport.recommendedAction === 'tow') ? '#fff5f5' : '#f0fdf4', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>AI Preliminary Assessment</span>
-                      <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 700, background: '#ef4444', color: '#ffffff' }}>{aiReport.severity} Severity</span>
+                      <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 700, background: (aiReport.severity === 'Critical' || aiReport.severity === 'CRITICAL' || aiReport.severity === 'HIGH') ? '#ef4444' : '#059669', color: '#ffffff' }}>
+                        {aiReport.severity || 'Normal'} Severity
+                      </span>
                     </div>
 
                     <div>
-                      <strong style={{ fontSize: '0.95rem', color: '#0f172a', display: 'block' }}>{aiReport.diagnosis}</strong>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Category: {aiReport.category}</span>
+                      <strong style={{ fontSize: '0.95rem', color: '#0f172a', display: 'block' }}>
+                        {aiReport.diagnosis || aiReport.faultTitle || 'EV Telemetry Analysis'}
+                      </strong>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Category: {aiReport.category || 'High Voltage & Drive System'}
+                      </span>
                     </div>
+
+                    {aiReport.responseInLanguage && (
+                      <div style={{ background: '#ffffff', padding: '10px 12px', borderRadius: '6px', borderLeft: '4px solid #00aa55', fontSize: '0.82rem', color: '#1e293b', lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        💬 {aiReport.responseInLanguage}
+                      </div>
+                    )}
 
                     <div>
                       <strong style={{ fontSize: '0.78rem', color: '#475569', display: 'block' }}>Probable Causes:</strong>
-                      <ul style={{ paddingLeft: '16px', fontSize: '0.78rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        {aiReport.causes.map((c: string, idx: number) => <li key={idx}>{c}</li>)}
+                      <ul style={{ paddingLeft: '16px', fontSize: '0.78rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '3px', margin: '4px 0 0 0' }}>
+                        {(Array.isArray(aiReport.causes)
+                          ? aiReport.causes
+                          : [aiReport.possibleCause || aiReport.diagnosis || 'Diagnostic inspection required']
+                        ).map((c: string, idx: number) => (
+                          <li key={idx}>{c}</li>
+                        ))}
                       </ul>
                     </div>
 
-                    {aiReport.recommendedAction === 'tow' ? (
+                    {(aiReport.recommendedAction === 'tow' || aiReport.recommendation === 'TOW_TRUCK' || aiReport.severity === 'Critical' || aiReport.severity === 'CRITICAL') ? (
                       <div style={{ background: '#fff5f5', padding: '12px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.8rem', color: '#475569', textAlign: 'left' }}>
                         <strong style={{ color: '#ef4444' }}>⚠️ AI Recommended Option: Towing Recovery Required</strong>
                         <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#64748b' }}>
-                          This issue is critical. We recommend dispatching a flatbed vehicle to tow your vehicle to the nearest Power2Go Hub.
+                          This issue requires workshop flatbed recovery. We recommend towing your vehicle to the nearest Power2Go Hub.
                         </div>
                       </div>
                     ) : (
                       <div style={{ background: '#fffbeb', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.8rem', color: '#475569', textAlign: 'left' }}>
                         <strong style={{ color: '#b45309' }}>🛠️ AI Recommended Option: Mobile Mechanic Dispatch</strong>
                         <div style={{ marginTop: '4px', fontSize: '0.75rem', color: '#64748b' }}>
-                          This issue appears to be minor and resolvable on-site. We recommend booking a mechanic to inspect/repair your EV.
+                          This issue appears resolvable on-site. We recommend booking a certified mechanic to inspect/repair your EV.
                         </div>
                       </div>
                     )}
 
-                    <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', borderLeft: '3px solid #f59e0b', borderTop: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', borderLeft: '3px solid #f59e0b', borderTop: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
                       <strong style={{ fontSize: '0.78rem', color: '#475569', display: 'block' }}>Recommended Action:</strong>
-                      <p style={{ fontSize: '0.75rem', color: '#0f172a', margin: '2px 0 0 0', fontWeight: 500 }}>{aiReport.recommendations}</p>
+                      <p style={{ fontSize: '0.75rem', color: '#0f172a', margin: '2px 0 0 0', fontWeight: 500 }}>
+                        {aiReport.recommendations || aiReport.safetyAdvice || 'Follow standard EV safety precautions.'}
+                      </p>
+                      {aiReport.estimatedCost && (
+                        <div style={{ marginTop: '5px', fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>
+                          💰 Estimated Cost: {aiReport.estimatedCost}
+                        </div>
+                      )}
                     </div>
 
                     <span style={{ fontSize: '0.68rem', color: '#64748b', fontStyle: 'italic', display: 'block', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
-                      ⚠️ {aiReport.disclaimer}
+                      ⚠️ {aiReport.disclaimer || 'Preliminary AI assessment based on reported symptoms. Certified technician verification recommended.'}
                     </span>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>

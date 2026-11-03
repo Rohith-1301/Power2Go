@@ -1600,99 +1600,477 @@ router.post('/ai/diagnose-multilingual', async (req: Request, res: Response) => 
   const { description, vehicleType, language } = req.body;
   if (!description) return res.status(400).json({ error: 'Description is required' });
 
+  // Auto-detect language if not explicitly provided or if user typed Indic script
+  let targetLang = (language && ['ta', 'hi', 'te', 'en'].includes(language)) ? language : 'en';
+  if (targetLang === 'en') {
+    if (/[\u0B80-\u0BFF]/.test(description)) targetLang = 'ta';
+    else if (/[\u0900-\u097F]/.test(description)) targetLang = 'hi';
+    else if (/[\u0C00-\u0C7F]/.test(description)) targetLang = 'te';
+  }
+
   const langInstructions: Record<string, string> = {
-    'ta': 'Respond ENTIRELY in Tamil (தமிழ்). Use Tamil script.',
-    'hi': 'Respond ENTIRELY in Hindi (हिंदी). Use Devanagari script.',
-    'te': 'Respond ENTIRELY in Telugu (తెలుగు). Use Telugu script.',
+    'ta': 'Respond ENTIRELY in Tamil (தமிழ்). Use proper Tamil script.',
+    'hi': 'Respond ENTIRELY in Hindi (हिंदी). Use proper Devanagari script.',
+    'te': 'Respond ENTIRELY in Telugu (తెలుగు). Use proper Telugu script.',
     'en': 'Respond in English.'
   };
-  const langInstruction = langInstructions[language] || langInstructions['en'];
+  const langInstruction = langInstructions[targetLang] || langInstructions['en'];
 
-  const systemPrompt = `You are an expert EV vehicle diagnostic AI for Power2Go. ${langInstruction}
+  // 1. Try Gemini API if key is present
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  if (GEMINI_API_KEY) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const geminiPrompt = `You are an expert EV roadside diagnostic AI for Power2Go India. ${langInstruction}
 
-Analyze the vehicle problem and return a structured diagnosis as a JSON object with these exact keys:
-{
-  "faultTitle": "Short title of the fault",
-  "severity": "LOW" or "MEDIUM" or "HIGH" or "CRITICAL",
-  "possibleCause": "Most likely cause",
-  "safetyAdvice": "Immediate safety action",
-  "recommendation": "MOBILE_CHARGING" or "MECHANIC" or "TOW_TRUCK" or "SAFE_TO_DRIVE",
-  "estimatedCost": "Cost range in INR",
-  "responseInLanguage": "Full friendly explanation in the user's language"
-}
-
-Vehicle type: ${vehicleType || 'car'}
+Analyze this EV breakdown/issue:
+Vehicle type: ${vehicleType || 'electric car'}
 Problem description: ${description}
 
-Return ONLY valid JSON, no extra text.`;
+Return ONLY valid JSON (no markdown formatting, no backticks, no code block) matching this schema:
+{
+  "diagnosis": "Precise fault title in target language",
+  "category": "High Voltage Battery / Drive Motor & Inverter / Braking & Suspension / Wheels & Tires / Thermal Management / 12V Auxiliary",
+  "causes": ["Probable cause 1 in target language", "Probable cause 2 in target language", "Probable cause 3 in target language"],
+  "severity": "Critical or Warning or Normal",
+  "recommendations": "Actionable instructions and safety steps in target language",
+  "recommendedAction": "tow or mechanic",
+  "disclaimer": "AI preliminary assessment. Professional mechanic verification required.",
+  "faultTitle": "Brief fault name",
+  "possibleCause": "Primary likely cause",
+  "safetyAdvice": "Immediate safety action",
+  "recommendation": "TOW_TRUCK or MECHANIC or MOBILE_CHARGING or SAFE_TO_DRIVE",
+  "estimatedCost": "₹X – ₹Y (INR)",
+  "responseInLanguage": "Friendly 2-sentence explanation in target language"
+}`;
 
+      const geminiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: geminiPrompt }] }]
+        }),
+        signal: AbortSignal.timeout(8000)
+      });
+
+      if (geminiRes.ok) {
+        const gData = await geminiRes.json() as any;
+        const raw = gData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (!Array.isArray(parsed.causes)) {
+            parsed.causes = [parsed.possibleCause || parsed.diagnosis || 'Diagnostic inspection required'];
+          }
+          if (!parsed.recommendedAction) {
+            parsed.recommendedAction = (parsed.recommendation === 'TOW_TRUCK' || parsed.severity === 'Critical') ? 'tow' : 'mechanic';
+          }
+          return res.json({ ...parsed, language: targetLang, source: 'gemini' });
+        }
+      }
+    } catch (e) {
+      // Continue to next AI provider
+    }
+  }
+
+  // 2. Try local Ollama if running
   try {
     const ollamaRes = await fetch('http://localhost:11434/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'llama3',
-        prompt: systemPrompt,
+        prompt: `You are an expert EV vehicle diagnostic AI for Power2Go. ${langInstruction}
+Problem: ${description} (Vehicle: ${vehicleType || 'EV'})
+Return ONLY JSON with keys: diagnosis, category, causes (array of strings), severity (Critical/Warning/Normal), recommendations, recommendedAction (tow/mechanic), disclaimer, faultTitle, possibleCause, safetyAdvice, recommendation (TOW_TRUCK/MECHANIC/MOBILE_CHARGING/SAFE_TO_DRIVE), estimatedCost, responseInLanguage.`,
         stream: false,
         options: { temperature: 0.3, num_predict: 400 }
       }),
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(6000)
     });
 
-    if (!ollamaRes.ok) throw new Error('Ollama unavailable');
-    const ollamaData = await ollamaRes.json() as any;
-    const raw = (ollamaData.response || '').trim();
-    // Extract JSON from response
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON in response');
-    const parsed = JSON.parse(jsonMatch[0]);
-    return res.json({ ...parsed, language, source: 'llama3' });
-
-  } catch (err: any) {
-    // Smart rule-based multilingual fallback
-    const lowerDesc = description.toLowerCase();
-    let severity = 'MEDIUM';
-    let recommendation = 'MECHANIC';
-    let faultTitle = 'Vehicle Issue Detected';
-    let possibleCause = 'Unknown fault - manual inspection required';
-    let estimatedCost = '₹500 – ₹3,000';
-
-    if (lowerDesc.includes('smoke') || lowerDesc.includes('fire') || lowerDesc.includes('spark') || lowerDesc.includes('புகை') || lowerDesc.includes('धुआं')) {
-      severity = 'CRITICAL'; recommendation = 'TOW_TRUCK'; faultTitle = 'Thermal Emergency';
-      possibleCause = 'Battery overheating or electrical short circuit'; estimatedCost = '₹15,000+';
-    } else if (lowerDesc.includes('battery') || lowerDesc.includes('charge') || lowerDesc.includes('dead') || lowerDesc.includes('பேட்டரி') || lowerDesc.includes('बैटरी')) {
-      severity = 'HIGH'; recommendation = 'MOBILE_CHARGING'; faultTitle = 'Battery Depleted';
-      possibleCause = 'Battery discharged below minimum operating voltage'; estimatedCost = '₹300 – ₹800 (charging cost)';
-    } else if (lowerDesc.includes('brake') || lowerDesc.includes('stop') || lowerDesc.includes('brake') || lowerDesc.includes('நிறுத்த')) {
-      severity = 'HIGH'; recommendation = 'MECHANIC'; faultTitle = 'Braking System Issue';
-      possibleCause = 'Brake pad wear or brake fluid leak'; estimatedCost = '₹1,500 – ₹5,000';
-    } else if (lowerDesc.includes('noise') || lowerDesc.includes('sound') || lowerDesc.includes('click') || lowerDesc.includes('சத்தம்')) {
-      severity = 'MEDIUM'; recommendation = 'MECHANIC'; faultTitle = 'Unusual Noise';
-      possibleCause = 'Loose component or motor bearing issue'; estimatedCost = '₹800 – ₹3,000';
-    } else if (lowerDesc.includes('slow') || lowerDesc.includes('power') || lowerDesc.includes('மெதுவாக')) {
-      severity = 'LOW'; recommendation = 'SAFE_TO_DRIVE'; faultTitle = 'Reduced Performance';
-      possibleCause = 'Battery at low charge or motor temperature limiting'; estimatedCost = '₹0 – ₹500';
+    if (ollamaRes.ok) {
+      const ollamaData = await ollamaRes.json() as any;
+      const raw = (ollamaData.response || '').trim();
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (!Array.isArray(parsed.causes)) {
+          parsed.causes = [parsed.possibleCause || parsed.diagnosis || 'Diagnostic inspection required'];
+        }
+        if (!parsed.recommendedAction) {
+          parsed.recommendedAction = (parsed.recommendation === 'TOW_TRUCK' || parsed.severity === 'Critical') ? 'tow' : 'mechanic';
+        }
+        return res.json({ ...parsed, language: targetLang, source: 'llama3' });
+      }
     }
+  } catch (err: any) {
+    // Continue to domain-specific knowledge engine
+  }
 
-    const fallbackMessages: Record<string, string> = {
-      'ta': `உங்கள் வாகனத்தில் "${faultTitle}" கண்டறியப்பட்டது. தீவிரம்: ${severity}. சாத்தியமான காரணம்: ${possibleCause}. மதிப்பீடு செய்யப்பட்ட செலவு: ${estimatedCost}. உங்கள் பாதுகாப்பு முக்கியம்!`,
-      'hi': `आपके वाहन में "${faultTitle}" पाया गया। गंभीरता: ${severity}। संभावित कारण: ${possibleCause}। अनुमानित लागत: ${estimatedCost}। आपकी सुरक्षा महत्वपूर्ण है!`,
-      'te': `మీ వాహనంలో "${faultTitle}" కనుగొనబడింది. తీవ్రత: ${severity}. సాధ్యమైన కారణం: ${possibleCause}. అంచనా వ్యయం: ${estimatedCost}. మీ భద్రత ముఖ్యం!`,
-      'en': `Diagnosis: "${faultTitle}" detected. Severity: ${severity}. Possible cause: ${possibleCause}. Estimated cost: ${estimatedCost}.`
+  // 3. High-Accuracy Multilingual EV Diagnostic Knowledge Engine
+  const desc = description.toLowerCase();
+
+  // Explicit check for actual fire/smoke/thermal danger (avoid substring collision like "தீர்ந்தது")
+  const isActualThermalDanger =
+    desc.includes('smoke') || desc.includes('fire') || desc.includes('flame') || desc.includes('spark') ||
+    desc.includes('burning') || desc.includes('overheat') ||
+    desc.includes('புகை') || desc.includes('நெருப்பு') || desc.includes('தீ விபத்து') || desc.includes('எரியும்') ||
+    desc.includes('धुआं') || desc.includes('आग') || desc.includes('जलने') || desc.includes('चिंगारी') ||
+    desc.includes('పొగ') || desc.includes('మంట') || desc.includes('నిప్పు');
+
+  // Battery depleted / dead / no charge / stalled
+  const isBatteryDepleted =
+    desc.includes('battery') || desc.includes('charge') || desc.includes('dead') || desc.includes('drain') ||
+    desc.includes('0%') || desc.includes('deplet') || desc.includes('discharge') || desc.includes('stall') ||
+    desc.includes('range') || desc.includes('powerless') || desc.includes('shutdown') ||
+    desc.includes('பேட்டரி') || desc.includes('தீர்ந்தது') || desc.includes('காலி') || desc.includes('சார்ஜ்') || desc.includes('நிக்கிது') || desc.includes('நிற்கிறது') ||
+    desc.includes('बैटरी') || desc.includes('खत्म') || desc.includes('डिस्चार्ज') || desc.includes('चार्ज नहीं') || desc.includes('बंद') ||
+    desc.includes('బ్యాటరీ') || desc.includes('అయిపోయింది') || desc.includes('ఛార్జ్ లేదు') || desc.includes('ఆగిపోయింది');
+
+  // Brakes / stopping / screeching
+  const isBrakeIssue =
+    desc.includes('brake') || desc.includes('squeak') || desc.includes('grind') || desc.includes('pedal') ||
+    desc.includes('stopping') || desc.includes('abs') ||
+    desc.includes('பிரேக்') || desc.includes('நிக்க மாட்டேங்குது') ||
+    desc.includes('ब्रेक') || desc.includes('आवाज') ||
+    desc.includes('బ్రేక్') || desc.includes('శబ్దం');
+
+  // Tire puncture / flat / air pressure
+  const isTireIssue =
+    desc.includes('tire') || desc.includes('tyre') || desc.includes('flat') || desc.includes('puncture') ||
+    desc.includes('wheel') || desc.includes('air') || desc.includes('pressure') || desc.includes('tpms') ||
+    desc.includes('டயர்') || desc.includes('பஞ்சர்') || desc.includes('காற்று') ||
+    desc.includes('टायर') || desc.includes('पंचर') || desc.includes('हवा') ||
+    desc.includes('టైర్') || desc.includes('పంక్చర్') || desc.includes('గాలి');
+
+  // Motor / Inverter / Acceleration
+  const isMotorIssue =
+    desc.includes('motor') || desc.includes('inverter') || desc.includes('accel') || desc.includes('slow') ||
+    desc.includes('jerk') || desc.includes('vibrat') || desc.includes('drive unit') ||
+    desc.includes('மோட்டார்') || desc.includes('வேகம்') || desc.includes('இழுக்கல') || desc.includes('உதறல்') ||
+    desc.includes('मोटर') || desc.includes('गति') || desc.includes('कंपन') ||
+    desc.includes('మోటార్') || desc.includes('వేగం') || desc.includes('కంపనం');
+
+  // Charging port / gun stuck / connector
+  const isChargingPortIssue =
+    desc.includes('port') || desc.includes('gun') || desc.includes('cable') || desc.includes('stuck') ||
+    desc.includes('socket') || desc.includes('plug') || desc.includes('latch') ||
+    desc.includes('போர்ட்') || desc.includes('கன்') || desc.includes('பிளக்') ||
+    desc.includes('सॉकेट') || desc.includes('गन') || desc.includes('प्लग') ||
+    desc.includes('సాకెట్') || desc.includes('గన్');
+
+  // 12V Auxiliary Battery / Display Blank
+  const is12VIssue =
+    desc.includes('12v') || desc.includes('screen') || desc.includes('display') || desc.includes('blank') ||
+    desc.includes('black') || desc.includes('lights') || desc.includes('cluster') ||
+    desc.includes('திரை') || desc.includes('டிஸ்பிளே') || desc.includes('லைட்') ||
+    desc.includes('डिस्प्ले') || desc.includes('स्क्रीन') || desc.includes('लाइट') ||
+    desc.includes('డిస్‌ప్లే') || desc.includes('స్క్రీన్');
+
+  let report: {
+    diagnosis: string;
+    category: string;
+    causes: string[];
+    severity: string;
+    recommendations: string;
+    recommendedAction: 'tow' | 'mechanic';
+    disclaimer: string;
+    faultTitle: string;
+    possibleCause: string;
+    safetyAdvice: string;
+    recommendation: 'TOW_TRUCK' | 'MECHANIC' | 'MOBILE_CHARGING' | 'SAFE_TO_DRIVE';
+    estimatedCost: string;
+    responseInLanguage: string;
+  };
+
+  if (isActualThermalDanger) {
+    const titles: Record<string, string> = {
+      ta: 'அவசர வெப்ப அல்லது ஷார்ட் சர்க்யூட் எச்சரிக்கை',
+      hi: 'थर्मल या शॉर्ट सर्किट आपातकालीन चेतावनी',
+      te: 'థర్మల్ లేదా షార్ట్ సర్క్యూట్ అత్యవసర హెచ్చరిక',
+      en: 'High Voltage Thermal / Short Circuit Emergency'
+    };
+    const expl: Record<string, string> = {
+      ta: 'வாகனத்தில் அதிக வெப்பம் அல்லது புகை கண்டறியப்பட்டுள்ளது. உடனடியாக வாகனத்திலிருந்து பாதுகாப்பான தூரத்திற்கு வெளியேறி SOS டோவிங் சேவையை அழைக்கவும்!',
+      hi: 'वाहन में अत्यधिक गर्मी या धुआं पाया गया है। तुरंत वाहन से सुरक्षित दूरी पर बाहर निकलें और SOS टोइंग सेवा को कॉल करें!',
+      te: 'వాహనంలో అధిక వేడి లేదా పొగ గుర్తించబడింది. వెంటనే వాహనం నుండి సురక్షితమైన దూరానికి బయటకు వచ్చి SOS టోయింగ్ సేవను పిలవండి!',
+      en: 'Thermal hazard or electrical short detected. Evacuate immediately to a safe distance and request emergency flatbed recovery.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['பேட்டரி செல்கள் அதிக வெப்பமடைதல்', 'உயர் மின்னழுத்த இன்வெர்ட்டர் வயரிங் ஷார்ட்', 'கூலிங் திரவ கசிவு அல்லது பம்ப் செயலிழப்பு'],
+      hi: ['बैटरी कोशिकाओं का अधिक गर्म होना', 'हाई-वोल्टेज इन्वर्टर वायरिंग शॉर्ट', 'कूलेंट लीक या थर्मल पंप विफलता'],
+      te: ['బ్యాటరీ సెల్స్ వేడెక్కడం', 'హై వోల్టేజ్ ఇన్వర్టర్ షార్ట్ సర్క్యూట్', 'కూలెంట్ లీకేజ్ లేదా పంప్ వైఫల్యం'],
+      en: ['HV Battery pack cell thermal runaway', 'Inverter wiring insulation short circuit', 'Coolant loop depressurization or pump failure']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'Thermal & High Voltage Safety',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Critical',
+      recommendations: targetLang === 'ta' ? 'வாகனத்தை விட்டு வெளியேறி பாதுகாப்பான தூரத்தில் நிற்கவும். பவர்2கோ அவசர டோவிங் அழைக்கவும்.' : 'Evacuate vehicle immediately. Request Power2Go Flatbed Recovery.',
+      recommendedAction: 'tow',
+      disclaimer: targetLang === 'ta' ? 'அவசர எச்சரிக்கை: உயர் மின்னழுத்த வயரிங்கை தொடாதீர்கள்.' : 'Urgent Safety Warning: Never touch exposed high voltage components.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'EVACUATE IMMEDIATELY! Keep 20m distance and contact emergency rescue.',
+      recommendation: 'TOW_TRUCK',
+      estimatedCost: '₹12,000 – ₹25,000',
+      responseInLanguage: expl[targetLang] || expl.en
     };
 
-    return res.json({
-      faultTitle,
-      severity,
-      possibleCause,
-      safetyAdvice: severity === 'CRITICAL' ? 'EVACUATE VEHICLE IMMEDIATELY!' : 'Stay safe and wait for assistance.',
-      recommendation,
-      estimatedCost,
-      responseInLanguage: fallbackMessages[language] || fallbackMessages['en'],
-      language,
-      source: 'fallback'
-    });
+  } else if (isBatteryDepleted) {
+    const titles: Record<string, string> = {
+      ta: 'உயர் மின்னழுத்த பேட்டரி முழுமையாக தீர்ந்தது (BMS லாக்அவுட்)',
+      hi: 'हाई वोल्टेज बैटरी डिस्चार्ज (BMS लॉकआउट)',
+      te: 'హై వోల్టేజ్ బ్యాటరీ పూర్తిగా డిశ్చార్జ్ (BMS లాకౌట్)',
+      en: 'High Voltage Traction Battery Depleted (BMS Lockout)'
+    };
+    const expl: Record<string, string> = {
+      ta: 'உங்கள் EV பேட்டரி 0% நிலையை அடைந்து வாகனம் நின்றுள்ளது. மொபைல் சார்ஜிங் வேன் அல்லது அருகிலுள்ள பவர்2கோ நிலையத்திற்கு டோவிங் தேர்வு செய்யவும்.',
+      hi: 'आपकी EV बैटरी 0% पर पहुंच चुकी है। मोबाइल चार्जिंग वैन या नजदीकी पावर2गो स्टेशन के लिए टोइंग चुनें।',
+      te: 'మీ EV బ్యాటరీ 0%కి చేరుకుంది మరియు వాహనం ఆగింది. మొబైల్ ఛార్జింగ్ వ్యాన్ లేదా సమీప పవర్2గో స్టేషన్‌కు టోయింగ్ ఎంచుకోండి.',
+      en: 'Your EV traction battery is completely depleted below operating voltage. Dispatch a mobile charging van or book flatbed recovery to the nearest hub.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['நீண்ட தூர பயணத்தில் முழு சார்ஜ் தீர்ந்து போதல்', 'BMS குறைந்த மின்னழுத்த பாதுகாப்பு லாக்', 'பேட்டரி செல்களின் சமநிலையின்மை'],
+      hi: ['लंबी दूरी में बैटरी पूरी तरह समाप्त होना', 'BMS लो-वोल्टेज सुरक्षा शटडाउन', 'बैटरी सेल असंतुलन'],
+      te: ['సుదీర్ఘ ప్రయాణంలో ఛార్జ్ పూర్తిగా అయిపోవడం', 'BMS లో-వోల్టేజ్ భద్రతా షట్‌డౌన్', 'బ్యాటరీ సెల్ అసమతుల్యత'],
+      en: ['Traction battery over-discharge past reserve threshold', 'BMS low-voltage protection lockout engaged', 'HV Contactor open circuit state']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'High Voltage Battery System',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Critical',
+      recommendations: targetLang === 'ta' ? 'அவசர மொபைல் சார்ஜிங் வேனை உங்கள் இடத்திற்கு வரவழைக்கவும் அல்லது பவர்2கோ சார்ஜிங் மையத்திற்கு வாகனத்தை டோவ் செய்யவும்.' : 'Dispatch Power2Go Mobile Charging Van or request Tow Recovery to nearest charging hub.',
+      recommendedAction: 'tow',
+      disclaimer: targetLang === 'ta' ? 'பேட்டரியை முழுமையாக காலியான நிலையில் நீண்ட நேரம் வைப்பது செல் ஆயுளை பாதிக்கும்.' : 'Prolonged zero-charge state can degrade lithium cell chemistry.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Turn on hazard flashers. Do not repeatedly cycle ignition switch.',
+      recommendation: 'MOBILE_CHARGING',
+      estimatedCost: '₹350 – ₹850 (Emergency roadside boost)',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
+
+  } else if (isBrakeIssue) {
+    const titles: Record<string, string> = {
+      ta: 'பிரேக்கிங் அமைப்பு மற்றும் ஹைட்ராலிக் குறைபாடு',
+      hi: 'ब्रेकिंग सिस्टम और हाइड्रोलिक खराबी',
+      te: 'బ్రేకింగ్ సిస్టమ్ మరియు హైడ్రాలిక్ లోపం',
+      en: 'Braking System Friction Wear / Hydraulic Pressure Fault'
+    };
+    const expl: Record<string, string> = {
+      ta: 'பிரேக் பேட் தேய்மானம் அல்லது பிரேக் திரவக் கசிவு கண்டறியப்பட்டுள்ளது. எங்கள் நடமாடும் மெக்கானிக்கை உங்கள் இருப்பிடத்திற்கு அழைக்கவும்.',
+      hi: 'ब्रेक पैड घिसने या ब्रेक फ्लुइड रिसाव का पता चला है। हमारे मोबाइल मैकेनिक को अपने स्थान पर बुलाएं।',
+      te: 'బ్రేక్ ప్యాడ్ అరిగిపోవడం లేదా బ్రేక్ ద్రవం లీకేజీ గుర్తించబడింది. మా మొబైల్ మెకానిక్‌ని మీ లొకేషన్‌కు పిలవండి.',
+      en: 'Brake friction lining degradation or hydraulic fluid pressure warning. Certified roadside mechanic dispatch recommended.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['பிரேக் பேட் உராய்வு தகடு தேய்மானம்', 'பிரேக் ஆயில் கசிவு அல்லது காற்று அடைப்பு', 'ரீஜெனரேட்டிவ் பிரேக் சென்சார் கோளாறு'],
+      hi: ['ब्रेक पैड घिसना', 'हाइड्रोलिक ब्रेक तरल रिसाव', 'रीजेनेरेटिव ब्रेक सेंसर त्रुटि'],
+      te: ['బ్రేక్ ప్యాడ్ అరిగిపోవడం', 'బ్రేక్ ఆయిల్ లీకేజ్', 'రీజనరేటివ్ బ్రేకింగ్ సెన్సార్ లోపం'],
+      en: ['Brake pad friction material worn below minimum safety limit', 'Hydraulic line pressure drop or air bubbles', 'Regenerative braking blended sensor communication error']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'Brakes & Suspension',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Warning',
+      recommendations: targetLang === 'ta' ? 'கடினமாக பிரேக் அடிப்பதை தவிர்க்கவும். உங்கள் இடத்திற்கே மெக்கானிக்கை முன்பதிவு செய்யவும்.' : 'Avoid high-speed driving. Book an on-site Power2Go technician to inspect brake calipers and pads.',
+      recommendedAction: 'mechanic',
+      disclaimer: targetLang === 'ta' ? 'பாதுகாப்பு: பிரேக் பெடல் மெதுவாக இருந்தால் வாகனத்தை ஓட்டாதீர்கள்.' : 'Do not drive if brake pedal feels spongey or sinks to the floor.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Pull vehicle safely to road shoulder and engage electronic parking brake.',
+      recommendation: 'MECHANIC',
+      estimatedCost: '₹1,200 – ₹3,500',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
+
+  } else if (isTireIssue) {
+    const titles: Record<string, string> = {
+      ta: 'டயர் பஞ்சர் அல்லது குறைந்த காற்று அழுத்தம்',
+      hi: 'टायर पंचर या कम हवा का दबाव',
+      te: 'టైర్ పంక్చర్ లేదా తక్కువ గాలి పీడనం',
+      en: 'Tire Puncture / Rapid Air Pressure Depletion'
+    };
+    const expl: Record<string, string> = {
+      ta: 'டயரில் பஞ்சர் அல்லது காற்று கசிவு ஏற்பட்டுள்ளது. எங்கள் மொபைல் மெக்கானிக் சம்பவ இடத்திற்கு வந்து பஞ்சர் சரிசெய்வார்.',
+      hi: 'टायर में पंचर या हवा का रिसाव हुआ है। हमारा मोबाइल मैकेनिक मौके पर आकर पंचर ठीक करेगा।',
+      te: 'టైర్‌లో పంక్చర్ లేదా గాలి లీకేజీ జరిగింది. మా మొబైల్ మెకానిక్ వచ్చి పంక్చర్ రిపేర్ చేస్తారు.',
+      en: 'Loss of tire pressure detected due to road hazard penetration. Roadside puncture repair or spare tire replacement available.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['சாலையில் ஆணி அல்லது கூர்மையான பொருள் குத்துதல்', 'வால்வ் பின் வழியே காற்று கசிவு', 'TPMS பிரஷர் சென்சார் பழுது'],
+      hi: ['सड़क पर कील या नुकीली वस्तु चुभना', 'वाल्व से हवा का रिसाव', 'TPMS प्रेशर सेंसर खराबी'],
+      te: ['రోడ్డుపై మేకు లేదా పదునైన వస్తువు గుచ్చుకోవడం', 'వాల్వ్ లీకేజ్', 'TPMS సెన్సార్ లోపం'],
+      en: ['Puncture caused by sharp road debris or nail', 'Valve stem core sealing leakage', 'TPMS pressure sensor internal transducer fault']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'Wheels & Tires',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Warning',
+      recommendations: targetLang === 'ta' ? 'வாகனத்தை மெதுவாக சாலையோரம் நிறுத்தி மொபைல் மெக்கானிக்கை அழைக்கவும்.' : 'Pull over safely. Book a Power2Go mobile mechanic for on-site puncture repair or spare fitment.',
+      recommendedAction: 'mechanic',
+      disclaimer: targetLang === 'ta' ? 'முற்றிலும் காற்று இல்லாத டயரில் ஓட்டுவது அலாய் வீலை சேதப்படுத்தும்.' : 'Driving on a completely flat tire causes permanent rim and sidewall damage.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Turn on hazard lights. Do not drive on rim.',
+      recommendation: 'MECHANIC',
+      estimatedCost: '₹300 – ₹900',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
+
+  } else if (isMotorIssue) {
+    const titles: Record<string, string> = {
+      ta: 'டிரைவ் மோட்டார் அல்லது இன்வெர்ட்டர் கட்டுப்பாட்டு கோளாறு',
+      hi: 'ड्राइव मोटर या इन्वर्टर कंट्रोल फॉल्ट',
+      te: 'డ్రైవ్ మోటార్ లేదా ఇన్వర్టర్ కంట్రోల్ లోపం',
+      en: 'Electric Traction Motor & Inverter Drive Unit Fault'
+    };
+    const expl: Record<string, string> = {
+      ta: 'மின்சார மோட்டார் பவர் அல்லது இன்வெர்ட்டர் கட்டுப்பாட்டில் குறைபாடு ஏற்பட்டுள்ளது. மொபைல் மெக்கானிக் மூலம் OBD ஸ்கேன் செய்யவும்.',
+      hi: 'इलेक्ट्रिक मोटर पावर या इन्वर्टर नियंत्रण में समस्या है। मोबाइल मैकेनिक से OBD स्कैन करवाएं।',
+      te: 'ఎలక్ట్రిక్ మోటార్ పవర్ లేదా ఇన్వర్టర్ నియంత్రణలో సమస్య ఉంది. మొబైల్ మెకానిక్ ద్వారా తనిఖీ చేయించండి.',
+      en: 'Torque reduction or phase power delivery failure in EV traction unit. OBD-II diagnostic scan required.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['இன்வெர்ட்டர் IGBT சுவிட்ச் தொடர்பு பிழை', 'மோட்டார் ரோட்டார் பொசிஷன் சென்சார் (Resolver) விலகல்', 'மோட்டார் டிரைவ் கூலிங் பம்ப் சுழற்சி குறைவு'],
+      hi: ['इन्वर्टर सर्किट में खराबी', 'मोटर रोटर सेंसर (Resolver) समस्या', 'मोटर कूलिंग पंप की कमी'],
+      te: ['ఇన్వర్టర్ సర్క్యూట్ లోపం', 'మోటార్ పొజిషన్ సెన్సార్ సమస్య', 'మోటార్ కూలింగ్ పంప్ లోపం'],
+      en: ['Inverter power stage switching anomaly', 'Motor resolver position sensor miscalibration', 'Drive unit auxiliary cooling loop restriction']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'Electric Powertrain & Inverter',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Warning',
+      recommendations: targetLang === 'ta' ? 'வாகனத்தை மறுதொடக்கம் (Power Cycle) செய்து பார்க்கவும். சிக்கல் தொடர்ந்தால் மெக்கானிக்கை அழைக்கவும்.' : 'Perform an ignition power cycle. If warning persists, dispatch an EV diagnostic technician.',
+      recommendedAction: 'mechanic',
+      disclaimer: targetLang === 'ta' ? 'அதிக முடுக்கம் (hard acceleration) கொடுப்பதை தவிர்க்கவும்.' : 'Avoid rapid torque demands until diagnostic clearing.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Shift to Park safely on road shoulder.',
+      recommendation: 'MECHANIC',
+      estimatedCost: '₹1,500 – ₹4,500',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
+
+  } else if (isChargingPortIssue) {
+    const titles: Record<string, string> = {
+      ta: 'சார்ஜிங் போர்ட் கன் லாக் அல்லது கனெக்டர் கோளாறு',
+      hi: 'चार्जिंग पोर्ट गन लॉक या कनेक्टर खराबी',
+      te: 'ఛార్జింగ్ పోర్ట్ గన్ లాక్ లేదా కనెక్టర్ లోపం',
+      en: 'Charging Inlet Actuator Lock Failure / Connector Latch Fault'
+    };
+    const expl: Record<string, string> = {
+      ta: 'சார்ஜர் கன் லாக் ஆகி பிரிக்க முடியவில்லை அல்லது சார்ஜிங் தொடங்கவில்லை. எங்கள் மெக்கானிக் லாக் அமைப்பை பத்திரமாக விடுவிப்பார்.',
+      hi: 'चार्जिंग गन लॉक हो गई है या चार्जिंग शुरू नहीं हो रही। हमारे मैकेनिक द्वारा लॉक सुरक्षित रूप से खोला जाएगा।',
+      te: 'ఛార్జింగ్ గన్ లాక్ అయి రావడం లేదు లేదా ఛార్జింగ్ ప్రారంభం కాలేదు. మా మెకానిక్ సమస్యను పరిష్కరిస్తారు.',
+      en: 'Vehicle charging port motorized solenoid pin stuck in lock position or pilot communication pin not handshaking.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['சார்ஜிங் போர்ட் ஆக்சுவேட்டர் மோட்டார் லாக்', 'சார்ஜர் பின்னில் அழுக்கு அல்லது தூசு', 'ஆன்-போர்டு சார்ஜர் (OBC) தொடர்பு முறிவு'],
+      hi: ['चार्जिंग पोर्ट एक्चुएटर पिन अटकना', 'पिन पर धूल या जंग', 'ऑन-बोर्ड चार्जर संचार समस्या'],
+      te: ['ఛార్జింగ్ పోర్ట్ పిన్ ఇరుక్కోవడం', 'పిన్లపై దుమ్ము లేదా తుప్పు', 'ఆన్-బోర్డ్ ఛార్జర్ కమ్యూనికేషన్ సమస్య'],
+      en: ['Electromechanical locking pin solenoid binding', 'Control Pilot (CP) / Proximity Pilot (PP) contact oxidation', 'On-board Charger (OBC) handshake timeout']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'Charging System & Inlet',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Normal',
+      recommendations: targetLang === 'ta' ? 'கன்னை பலவந்தமாக இழுக்காதீர்கள். கார் பூட்டை 3 முறை அன்லாக் செய்து பார்க்கவும் அல்லது மெக்கானிக்கை அழைக்கவும்.' : 'Do not force the cable. Try emergency manual release cord inside boot, or book our roadside technician.',
+      recommendedAction: 'mechanic',
+      disclaimer: targetLang === 'ta' ? 'பலவந்தமாக இழுத்தால் போர்ட் பின் உடையும் அபாயம் உள்ளது.' : 'Forcing charging cable can break the inlet assembly and require costly replacement.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Do not pull cable vigorously while charger is energized.',
+      recommendation: 'MECHANIC',
+      estimatedCost: '₹500 – ₹1,800',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
+
+  } else if (is12VIssue) {
+    const titles: Record<string, string> = {
+      ta: 'துணை 12V பேட்டரி சார்ஜ் குறைவு / டிஸ்பிளே ஆஃப்',
+      hi: '12V सहायक बैटरी लो चार्ज / डिस्प्ले बंद',
+      te: '12V సహాయక బ్యాటరీ లో ఛార్జ్ / డిస్‌ప్లే ఆఫ్',
+      en: '12V Auxiliary Battery Low Voltage / Central Infotainment Blackout'
+    };
+    const expl: Record<string, string> = {
+      ta: 'EV-யின் 12V துணை பேட்டரி பலவீனமாக இருப்பதால் திரை மற்றும் கட்டுப்பாடுகள் ஆன் ஆகவில்லை. ஜம்ப்-ஸ்டார்ட் அல்லது 12V பேட்டரி மாற்ற மெக்கானிக்கை அழைக்கவும்.',
+      hi: 'EV की 12V सहायक बैटरी कमजोर होने के कारण डिस्प्ले और सिस्टम शुरू नहीं हो रहे। जंप-स्टार्ट के लिए मैकेनिक बुक करें।',
+      te: 'EV యొక్క 12V సహాయక బ్యాటరీ బలహీనంగా ఉండటం వల్ల స్క్రీన్ మరియు సిస్టమ్స్ ఆన్ కాలేదు. జంప్-స్టార్ట్ కోసం మెకానిక్‌ని బుక్ చేయండి.',
+      en: 'The 12-volt low voltage battery powering onboard computers, contactor relays, and screens is discharged.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['12V துணை லெட்-ஆசிட்/லித்தியம் பேட்டரி பலவீனம்', 'DC-DC கன்வெர்ட்டர் 12V சார்ஜிங் சுவிட்ச் செயலிழப்பு', 'துணை சாதனங்களின் தொடர் மின் பயன்பாடு'],
+      hi: ['12V सहायक बैटरी डिस्चार्ज होना', 'DC-DC कनवर्टर चार्जिंग फॉल्ट', 'अतिरिक्त उपकरणों द्वारा बैटरी ड्रेन'],
+      te: ['12V సహాయక బ్యాటరీ డిశ్చార్జ్ కావడం', 'DC-DC కన్వర్టర్ లోపం', 'బ్యాటరీ డ్రెయిన్'],
+      en: ['12V auxiliary battery state-of-health degradation', 'DC-DC converter buck circuit sleep state failure', 'Parasitic draw from aftermarket accessory or dashcam']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: '12V Low Voltage Electrical',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Warning',
+      recommendations: targetLang === 'ta' ? 'மொபைல் மெக்கானிக்கை அழைத்து 12V பூஸ்ட் அல்லது பேட்டரி மாற்றத்தை மேற்கொள்ளவும்.' : 'Book a mobile mechanic to perform a 12V booster pack jump-start or battery test.',
+      recommendedAction: 'mechanic',
+      disclaimer: targetLang === 'ta' ? '12V இல்லாவிட்டால் உயர் மின்னழுத்த பேட்டரியும் இயங்காது.' : 'The HV traction battery contactors cannot close without a healthy 12V system.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Turn off all auxiliary accessories (headlights, blower fans) to conserve voltage.',
+      recommendation: 'MECHANIC',
+      estimatedCost: '₹600 – ₹2,200',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
+
+  } else {
+    // General EV Diagnostic Telemetry issue
+    const titles: Record<string, string> = {
+      ta: 'EV பொதுவான கணினி மற்றும் சென்சார் கண்டறிதல்',
+      hi: 'EV सामान्य कंप्यूटर और सेंसर डायग्नोस्टिक',
+      te: 'EV సాధారణ సిస్టమ్ మరియు సెన్సార్ డయాగ్నస్టిక్',
+      en: 'EV Powertrain Control Module System Diagnostic'
+    };
+    const expl: Record<string, string> = {
+      ta: 'வாகனத்தின் சென்சார் மற்றும் கண்ட்ரோல் யூனிட் ஸ்கேன் செய்யப்பட்டது. பவர்2கோ மெக்கானிக் மூலம் விரிவான ஆய்வு பரிந்துரைக்கப்படுகிறது.',
+      hi: 'वाहन के सेंसर और कंट्रोल यूनिट का विश्लेषण किया गया। पावर2गो मैकेनिक द्वारा निरीक्षण की सिफारिश की जाती है।',
+      te: 'వాహనం సెన్సార్ మరియు కంట్రోల్ యూనిట్ పరిశీలించబడింది. మెకానిక్ ద్వారా తనిఖీ సిఫార్సు చేయబడింది.',
+      en: 'Preliminary EV telemetry diagnostic scan completed. Roadside technician inspection recommended for full root cause resolution.'
+    };
+    const causeList: Record<string, string[]> = {
+      ta: ['கண்ட்ரோல் மாட்யூல் கேன்-பஸ் (CAN-bus) தொடர்பு முரண்பாடு', 'சென்சார் சிக்னல் தற்காலிக துண்டிப்பு', 'சிஸ்டம் வோல்டேஜ் மாறுபாடு'],
+      hi: ['कंट्रोल मॉड्यूल CAN-bus संचार में व्यवधान', 'सेंसर सिग्नल का क्षणिक डिस्कनेक्ट', 'सिस्टम वोल्टेज में उतार-चढ़ाव'],
+      te: ['కంట్రోల్ మాడ్యూల్ కమ్యూనికేషన్ లోపం', 'సెన్సార్ సిగ్నల్ సమస్య', 'వోల్టేజ్ హెచ్చుతగ్గులు'],
+      en: ['CAN-bus communication transient frame timeout', 'Chassis sensor intermittent signal variance', 'Auxiliary telemetry voltage fluctuation']
+    };
+    report = {
+      diagnosis: titles[targetLang] || titles.en,
+      category: 'General Electronic Control Unit (ECU)',
+      causes: causeList[targetLang] || causeList.en,
+      severity: 'Normal',
+      recommendations: targetLang === 'ta' ? 'அருகிலுள்ள பவர்2கோ சேவை மையத்தை தொடர்பு கொள்ளவும் அல்லது மெக்கானிக்கை வரவழைக்கவும்.' : 'Perform vehicle restart. If warning persists, dispatch our mobile EV mechanic.',
+      recommendedAction: 'mechanic',
+      disclaimer: targetLang === 'ta' ? 'பாதுகாப்பான முறையில் ஓட்டவும். எச்சரிக்கை விளக்குகள் எரிந்தால் கவனிக்கவும்.' : 'AI preliminary triage based on reported telemetry. Professional verification recommended.',
+      faultTitle: titles[targetLang] || titles.en,
+      possibleCause: (causeList[targetLang] || causeList.en)[0],
+      safetyAdvice: 'Monitor dashboard indicators. If red warning alerts appear, stop safely.',
+      recommendation: 'MECHANIC',
+      estimatedCost: '₹500 – ₹1,800',
+      responseInLanguage: expl[targetLang] || expl.en
+    };
   }
+
+  return res.json({
+    ...report,
+    language: targetLang,
+    source: 'knowledge-engine'
+  });
 });
 
 export default router;

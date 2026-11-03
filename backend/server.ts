@@ -33,11 +33,13 @@ app.get('/api/download-report', (req, res) => {
   }
 });
 app.get('/api/download-deck', (req, res) => {
-  const pptxPath = "C:\\Users\\Rohith\\Desktop\\Power2Go_DEEPSprint_Pitch_Deck.pptx";
-  if (fs.existsSync(pptxPath)) {
-    res.download(pptxPath, 'Power2Go_DEEPSprint_Pitch_Deck.pptx');
+  const localPptx = path.join(__dirname, '../Power2Go_Unleash_LLM_Final_Pitch.pptx');
+  const desktopPptx = "C:\\Users\\Rohith\\Desktop\\Power2Go_Unleash_LLM_Final_Pitch.pptx";
+  const targetPath = fs.existsSync(localPptx) ? localPptx : (fs.existsSync(desktopPptx) ? desktopPptx : null);
+  if (targetPath) {
+    res.download(targetPath, 'Power2Go_Unleash_LLM_Final_Pitch.pptx');
   } else {
-    res.status(404).json({ error: 'Deck file not found on server' });
+    res.status(404).json({ error: 'Pitch deck file not found on server' });
   }
 });
 app.use('/api', routes);
